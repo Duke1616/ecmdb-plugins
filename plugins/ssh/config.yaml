@@ -1,0 +1,21 @@
+# 全局日志管理
+log:
+  debug: true                 # 是否开启 Debug 日志级别。此参数支持运行时文件修改热重载！
+
+# 插件基础服务配置
+ssh:
+  addr: ":18080"              # 插件监听的 HTTP 端口
+  upstream: ""                # ECMDB 主站网关反向代理访问该插件的 upstream 地址 (可选)
+  timeout_seconds: 5          # 远程主机 SSH 拨号连接超时时间 (秒)
+
+# etcd 注册中心配置 (全插件服务发现依赖基础)
+etcd:
+  endpoints:
+    - "127.0.0.1:2379"        # 统一的服务发现 etcd 服务节点，多节点用逗号分隔
+
+# gRPC 微服务客户端配置
+grpc:
+  client:
+    ecmdb:
+      name: "ecmdb"            # 在 etcd 注册中心里注册的主站服务名称
+      auth_token: ""           # 微服务间调用鉴权的 JWT 令牌 (按需配置)

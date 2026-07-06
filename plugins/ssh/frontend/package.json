@@ -1,0 +1,26 @@
+{
+  "name": "ecmdb-plugin-ssh-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "guacamole-common-js": "^1.5.0",
+    "lodash": "^4.17.21",
+    "vue": "^3.4.0",
+    "vuefinder": "^4.0.11"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.14.202",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "sass": "^1.77.0",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0",
+    "vue-tsc": "^2.0.0"
+  }
+}
