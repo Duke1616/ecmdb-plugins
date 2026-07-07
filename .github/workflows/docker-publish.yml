@@ -1,0 +1,99 @@
+name: docker
+on:
+  schedule:
+    - cron: '32 20 * * *'
+  push:
+    branches: [ "**" ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ "**" ]
+env:
+  REGISTRY: registry.cn-qingdao.aliyuncs.com
+
+jobs:
+  # 任务 1：使用 dorny/paths-filter 插件检测发生了修改的插件模块，彻底消除手写 shell 脚本
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      # 输出发生了改变的插件模块 JSON 数组，例如 ["ssh"]
+      plugins: ${{ steps.filter.outputs.changes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed plugins
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # 配置检测策略：当指定插件的源码目录，或全局公共包/配置发生改变时，触发该插件的构建
+          filters: |
+            ssh:
+              - 'plugins/ssh/**'
+              - 'pkg/**'
+              - 'go.mod'
+              - 'go.sum'
+              - 'deploy/**'
+              - '.github/workflows/**'
+
+  # 任务 2：使用并行 Strategy Matrix 对有变动的插件执行独立打包与推送
+  build:
+    needs: prepare
+    # 仅当有检测到发生变更的插件时才触发构建
+    if: ${{ needs.prepare.outputs.plugins != '[]' && needs.prepare.outputs.plugins != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        plugin: ${{ fromJson(needs.prepare.outputs.plugins) }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find Latest Tags
+        id: octokit
+        uses: oprypin/find-latest-tag@v1
+        with:
+          repository: Duke1616/ecmdb
+          releases-only: false
+
+      - name: Set up Docker build
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/duke1616/ecmdb-plugin-${{ matrix.plugin }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+
+      - name: Login into registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ALIYUN_USERNAME }}
+          password: ${{ secrets.ALIYUN_PASSWORD }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 启用 GHA 编译缓存，并以插件为 scope 进行缓存隔离
+          cache-from: type=gha,scope=${{ matrix.plugin }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.plugin }}
+          build-args: |
+            PLUGIN_NAME=${{ matrix.plugin }}
+            VERSION=${{ steps.octokit.outputs.tag }}
