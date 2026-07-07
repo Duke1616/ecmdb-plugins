@@ -5,9 +5,10 @@ import (
 	"net"
 	"time"
 
-	sshweb "github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/web"
-	common_grpc "github.com/Duke1616/ecmdb-plugins/pkg/grpc"
 	pluginv1 "github.com/Duke1616/ecmdb-plugins/api/proto/gen/ecmdb/plugin/v1"
+	common_grpc "github.com/Duke1616/ecmdb-plugins/pkg/grpc"
+	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
+	sshweb "github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/web"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/eiam/pkg/web/capability"
 	"github.com/Duke1616/eiam/pkg/web/middleware"
@@ -60,6 +61,7 @@ func InitWebServer(
 	server := egin.DefaultContainer().Build(egin.WithListener(listener))
 	server.Engine.ContextWithFallback = true
 	server.Use(mdls...)
+	policySDK.WithPathPrefix("/api/plugin-runtime/" + define.PluginUID)
 
 	sshHdl.PublicRoutes(server.Engine)
 
@@ -71,6 +73,8 @@ func InitWebServer(
 	go func() {
 		time.Sleep(time.Second)
 		if err := syncer.WithOption(
+			capability.WithSource(define.PluginUID),
+			capability.WithAPIPathPrefix("/api/plugin-runtime/"+define.PluginUID),
 			capability.WithPermissions(providers...),
 			capability.WithRouter(server.Engine),
 		).Sync(context.Background()); err != nil {

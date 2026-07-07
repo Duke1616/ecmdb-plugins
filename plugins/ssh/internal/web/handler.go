@@ -31,6 +31,7 @@ type Handler struct {
 	resolver plugin.ContextResolver
 	session  *term.SessionPool
 	timeout  time.Duration
+	finder   *finderRuntime
 	capability.IRegistry
 }
 
@@ -50,11 +51,12 @@ func NewHandler(cfg config.Config) *Handler {
 		resolver:  resolver,
 		session:   term.NewSessionPool(),
 		timeout:   timeout,
+		finder:    newFinderRuntime(),
 		IRegistry: capability.NewRegistry("cmdb", "ssh", "资产仓库/SSH 插件"),
 	}
 }
 
-var upGrader = websocket.Upgrader{
+var upgrader = websocket.Upgrader{
 	ReadBufferSize:  4096,
 	WriteBufferSize: 4096,
 	CheckOrigin: func(r *http.Request) bool {
@@ -81,45 +83,7 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 	)
 
 	sftpGroup := server.Group("/sftp")
-	sftpGroup.GET("/files", h.Capability("查看文件", "sftp_files").
-		Handle(h.sftpNotImplemented("files")),
-	)
-	sftpGroup.GET("/download", h.Capability("下载文件", "sftp_download").
-		Handle(h.sftpNotImplemented("download")),
-	)
-	sftpGroup.GET("/search", h.Capability("搜索文件", "sftp_search").
-		Handle(h.sftpNotImplemented("search")),
-	)
-	sftpGroup.GET("/preview", h.Capability("预览文件", "sftp_preview").
-		Handle(h.sftpNotImplemented("preview")),
-	)
-	sftpGroup.POST("/new_folder", h.Capability("创建目录", "sftp_new_folder").
-		Handle(h.sftpNotImplemented("new_folder")),
-	)
-	sftpGroup.POST("/new_file", h.Capability("创建文件", "sftp_new_file").
-		Handle(h.sftpNotImplemented("new_file")),
-	)
-	sftpGroup.POST("/rename", h.Capability("重命名文件", "sftp_rename").
-		Handle(h.sftpNotImplemented("rename")),
-	)
-	sftpGroup.POST("/move", h.Capability("移动文件", "sftp_move").
-		Handle(h.sftpNotImplemented("move")),
-	)
-	sftpGroup.POST("/archive", h.Capability("压缩文件", "sftp_archive").
-		Handle(h.sftpNotImplemented("archive")),
-	)
-	sftpGroup.POST("/unarchive", h.Capability("解压文件", "sftp_unarchive").
-		Handle(h.sftpNotImplemented("unarchive")),
-	)
-	sftpGroup.POST("/save", h.Capability("保存文件内容", "sftp_save").
-		Handle(h.sftpNotImplemented("save")),
-	)
-	sftpGroup.POST("/delete", h.Capability("删除文件", "sftp_delete").
-		Handle(h.sftpNotImplemented("delete")),
-	)
-	sftpGroup.GET("/upload/ws", h.Capability("上传文件", "sftp_upload_ws").
-		Handle(h.sftpNotImplemented("upload_ws")),
-	)
+	registerSFTPRoutes(sftpGroup, h)
 }
 
 func (h *Handler) healthz(ctx *gin.Context) {
@@ -129,40 +93,39 @@ func (h *Handler) healthz(ctx *gin.Context) {
 	})
 }
 
-func (h *Handler) sftpNotImplemented(endpoint string) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		ctx.PureJSON(http.StatusNotImplemented, ginx.Result{
-			Code: http.StatusNotImplemented,
-			Msg:  "SFTP endpoint is not implemented yet",
-			Data: gin.H{"endpoint": endpoint},
-		})
-	}
-}
-
 func (h *Handler) Connect(ctx *gin.Context, req ConnectReq) (ginx.Result, error) {
-	switch req.Type {
-	case ConnectTypeRDP:
-		return ginx.Result{Msg: "不支持RDP协议"}, fmt.Errorf("暂不支持 RDP 协议")
-	case ConnectTypeVNC:
-		return ginx.Result{Msg: "不支持VNC协议"}, fmt.Errorf("暂不支持 VNC 协议")
-	case ConnectTypeSSH:
-		_, err := h.connectSSH(ctx, req.ResourceId, define.ActionTerminal)
-		if err != nil {
-			return ginx.Result{}, err
-		}
-	case ConnectTypeWebSftp:
-		_, err := h.connectSSH(ctx, req.ResourceId, define.ActionSFTP)
-		if err != nil {
-			return ginx.Result{}, err
-		}
-	default:
-		return ginx.Result{Msg: fmt.Sprintf("不支持的连接类型: %s", req.Type)}, fmt.Errorf("unsupported connect type: %s", req.Type)
+	spec, err := req.Type.spec()
+	if err != nil {
+		return ginx.Result{Msg: err.Error()}, err
 	}
 
-	return ginx.Result{Msg: "SSH 连接成功"}, nil
+	if err := h.openAndStoreSession(ctx, req.ResourceId, spec.action); err != nil {
+		return ginx.Result{}, err
+	}
+
+	return ginx.Result{Msg: spec.successMsg}, nil
 }
 
-func (h *Handler) connectSSH(ctx context.Context, resourceID int64, action string) (term.Session, error) {
+func (h *Handler) openAndStoreSession(ctx context.Context, resourceID int64, action string) error {
+	sess, err := h.openSSHSession(ctx, resourceID, action)
+	if err != nil {
+		return err
+	}
+
+	h.replaceSession(resourceID, sess)
+	return nil
+}
+
+func (h *Handler) replaceSession(resourceID int64, next term.Session) {
+	if current, err := h.session.GetSession(resourceID); err == nil && current != nil {
+		_ = current.Close()
+	}
+
+	h.finder.clear(resourceID)
+	h.session.SetSession(resourceID, next)
+}
+
+func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action string) (term.Session, error) {
 	actionCtx, err := h.resolver.ResolveActionContext(ctx, define.ResolveRequest(action, resourceID))
 	if err != nil {
 		return nil, fmt.Errorf("获取 SSH 插件输入失败: %w", err)
@@ -186,25 +149,21 @@ func (h *Handler) connectSSH(ctx context.Context, resourceID int64, action strin
 		return nil, fmt.Errorf("ssh connector fail: %w", err)
 	}
 
-	h.session.SetSession(resourceID, sess)
 	return sess, nil
 }
 
 func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
-	resourceID := ctx.Query("resource_id")
-	resourceIDInt, err := strconv.ParseInt(resourceID, 10, 64)
+	resourceIDInt, err := parseRequiredInt64Query(ctx, "resource_id")
 	if err != nil {
 		return err
 	}
 
-	cols := ctx.Query("cols")
-	colsInt, err := strconv.Atoi(cols)
+	colsInt, err := parseRequiredIntQuery(ctx, "cols")
 	if err != nil {
 		return err
 	}
 
-	rows := ctx.Query("rows")
-	rowsInt, err := strconv.Atoi(rows)
+	rowsInt, err := parseRequiredIntQuery(ctx, "rows")
 	if err != nil {
 		return err
 	}
@@ -213,7 +172,7 @@ func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
 }
 
 func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows int) error {
-	conn, err := upGrader.Upgrade(ctx.Writer, ctx.Request, nil)
+	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		return err
 	}
@@ -244,16 +203,16 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 		case <-ctx.Done():
 			return nil
 		default:
-			_, message, err := conn.ReadMessage()
-			if err == io.EOF {
+			_, message, err1 := conn.ReadMessage()
+			if err1 == io.EOF {
 				return nil
 			}
-			if err != nil {
-				return err
+			if err1 != nil {
+				return err1
 			}
 
-			msg, er := sshx.ParseTerminalMessage(message)
-			if er != nil {
+			msg, err2 := sshx.ParseTerminalMessage(message)
+			if err2 != nil {
 				continue
 			}
 
@@ -273,4 +232,30 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 			}
 		}
 	}
+}
+
+func parseRequiredInt64Query(ctx *gin.Context, key string) (int64, error) {
+	value := ctx.Query(key)
+	if value == "" {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return parsed, nil
+}
+
+func parseRequiredIntQuery(ctx *gin.Context, key string) (int, error) {
+	value := ctx.Query(key)
+	if value == "" {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	return parsed, nil
 }

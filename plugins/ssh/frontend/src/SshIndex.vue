@@ -62,12 +62,19 @@
 
       <!-- 终端组件容器 -->
       <div v-else class="terminal-wrapper">
-        <finder v-if="selectedOption === 'Web Sftp'" :key="finderViewKey" :resource_id="resourceId" :prefix="prefix" />
+        <finder
+          v-if="selectedOption === 'Web Sftp'"
+          :key="finderViewKey"
+          :resource_id="resourceId"
+          :prefix="prefix"
+          :api-base="apiBase"
+        />
         <xterm
           v-else-if="selectedOption === 'Web Shell'"
           :key="xtermViewKey"
           :resource_id="resourceId"
           :prefix="prefix"
+          :api-base="apiBase"
         />
         <guacd v-else-if="selectedOption === 'RDP'" :key="guacdViewKey" :resource_id="resourceId" :prefix="prefix" />
         <!-- VNC 组件暂未实现 -->
@@ -91,6 +98,7 @@ import finder from "./file-system.vue"
 // 引入本地地址配置
 import type { PrefixConfig } from "./utils/prefix-config"
 import { getPrefixConfig } from "./utils/prefix-config"
+import { getRuntimeRequestHeaders } from "./utils/runtime-auth"
 
 // Props
 interface SshIndexProps {
@@ -196,12 +204,13 @@ const connect = async () => {
   loading.value = true
 
   try {
-    const response = await fetch(`${props.apiBase}/term/connect`, {
+    const response = await fetch(`${props.apiBase}/terminal/connect`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": localStorage.getItem("token") || ""
+        ...getRuntimeRequestHeaders()
       },
+      credentials: "include",
       body: JSON.stringify({
         resource_id: Number(props.resourceId),
         type: selectedOption.value
@@ -339,11 +348,14 @@ onUnmounted(() => {
 .term-container {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   gap: 12px;
   background: transparent;
   width: 100%;
+  overflow: hidden;
 }
 
 // 恢复原有 100% 样式配置，保证视觉细节毫无差别
@@ -503,29 +515,56 @@ onUnmounted(() => {
 .terminal-empty-state {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   border-radius: 10px;
   border: 1px dashed #cbd5e1;
   background: rgba(255, 255, 255, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
+
+  :deep(.el-empty) {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :deep(.el-empty__description) {
+    margin-top: 12px;
+  }
 }
 
 .terminal-panel {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
+  width: 100%;
+  overflow: hidden;
 }
 
 .terminal-wrapper {
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #dbe3ee;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
-  background: white;
+  background: #000;
   display: flex;
+}
+
+.terminal-wrapper > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 .vnc-placeholder {

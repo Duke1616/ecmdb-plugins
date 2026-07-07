@@ -25,6 +25,7 @@ func NewProvider(cfg config.Config) Provider {
 }
 
 func (p Provider) Definition() (plugin.Definition, error) {
+	hostBindingUID := plugin.CenterBindingUID(PluginUID, "host")
 	return plugin.NewRegistry(
 		PluginUID,
 		"SSH",
@@ -38,12 +39,16 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			"SSH 终端",
 			plugin.Icon("terminal"),
 			plugin.UI(plugin.UIBuiltinTerminal),
+			plugin.ActionRuntime(workspaceRuntime("SSH 终端", "Web Shell", "host")),
+			plugin.UseBinding(hostBindingUID),
 		).
 		Action(
 			ActionSFTP,
 			"文件管理",
 			plugin.Icon("folder"),
 			plugin.UI(plugin.UIBuiltinSFTP),
+			plugin.ActionRuntime(workspaceRuntime("文件管理", "Web Sftp", "host")),
+			plugin.UseBinding(hostBindingUID),
 		).
 		Setup(
 			plugin.ModelGroup("主机模型"),
@@ -190,4 +195,31 @@ func gatewayModel() plugin.ModelSpec {
 
 func authOptions() []string {
 	return []string{"passwd", "publickey", "passphrase"}
+}
+
+func workspaceRuntime(title string, connectionType string, modelUID string) plugin.ActionRuntimeSpec {
+	return plugin.ActionRuntimeSpec{
+		Layout: "workspace",
+		Title:  title,
+		Props: map[string]any{
+			"connectionType": connectionType,
+			"autoConnect":    true,
+		},
+		Sidebar: &plugin.RuntimeSidebarSpec{
+			Enabled:           boolPtr(true),
+			Mode:              "resource-list",
+			Title:             "资源列表",
+			SearchPlaceholder: "搜索资源名称或 ID",
+			EmptyText:         "暂无资源数据",
+			Collapsible:       boolPtr(true),
+			Resource: &plugin.RuntimeSidebarResourceSpec{
+				ModelUID: modelUID,
+				Limit:    20,
+			},
+		},
+	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }

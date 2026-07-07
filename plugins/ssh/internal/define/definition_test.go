@@ -19,6 +19,21 @@ func TestDefinition(t *testing.T) {
 	if len(def.Plugin.Actions) != 2 {
 		t.Fatalf("actions = %#v", def.Plugin.Actions)
 	}
+	if def.Plugin.Actions[0].Runtime == nil {
+		t.Fatal("terminal runtime not found")
+	}
+	if def.Plugin.Actions[0].Runtime.Layout != "workspace" {
+		t.Fatalf("unexpected terminal layout: %s", def.Plugin.Actions[0].Runtime.Layout)
+	}
+	if got := def.Plugin.Actions[0].Runtime.Props["connectionType"]; got != "Web Shell" {
+		t.Fatalf("unexpected terminal connectionType: %v", got)
+	}
+	if def.Plugin.Actions[1].Runtime == nil {
+		t.Fatal("sftp runtime not found")
+	}
+	if got := def.Plugin.Actions[1].Runtime.Props["connectionType"]; got != "Web Sftp" {
+		t.Fatalf("unexpected sftp connectionType: %v", got)
+	}
 
 	runtime, ok := def.Plugin.Runtime()
 	if !ok {

@@ -47,7 +47,7 @@ go run ./cmd/ssh-plugin
 ```bash
 go run ./cmd/ssh-plugin --addr :18080 --upstream http://127.0.0.1:18080
 go run ./cmd/ssh-plugin --ecmdb-grpc-addr 127.0.0.1:9000
-go run ./cmd/ssh-plugin --config ./config.yaml
+go run ./cmd/ssh-plugin --config ./plugins/ssh/config/config.yaml
 ```
 
 ```text

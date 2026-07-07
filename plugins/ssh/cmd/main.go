@@ -26,7 +26,7 @@ func main() {
 
 	// 默认读取子插件下的 config.yaml，保持高内聚自包含
 	dir, _ := os.Getwd()
-	defaultCfg := dir + "/plugins/ssh/config.yaml"
+	defaultCfg := dir + "/plugins/ssh/config/config.yaml"
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", defaultCfg, "配置文件路径")
 
 	// 绑定环境变量

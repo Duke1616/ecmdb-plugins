@@ -16,9 +16,11 @@ const props = withDefaults(
   defineProps<{
     resource_id: string
     prefix: PrefixConfig | undefined
+    apiBase: string
   }>(),
   {
-    resource_id: "1"
+    resource_id: "1",
+    apiBase: ""
   }
 )
 
@@ -33,6 +35,15 @@ const socket = ref<WebSocket>()
 let resizeObserver: ResizeObserver | undefined
 let resizeHandler: ReturnType<typeof _.debounce> | undefined
 let dataDisposer: { dispose: () => void } | undefined
+
+const scheduleInitialFit = () => {
+  nextTick(() => {
+    resizeTerminal()
+    window.requestAnimationFrame(() => {
+      resizeTerminal()
+    })
+  })
+}
 
 const initXterm = () => {
   if (!xtermRef.value || !props.prefix?.wsServer) {
@@ -62,7 +73,7 @@ const initXterm = () => {
   xterm.value.focus()
 
   socket.value = new WebSocket(
-    `${props.prefix.wsServer}/api/cmdb/term/ssh/session?resource_id=${props.resource_id}&cols=${xterm.value.cols}&rows=${xterm.value.rows}`
+    `${props.prefix.wsServer}${props.apiBase}/terminal/ws?resource_id=${props.resource_id}&cols=${xterm.value.cols}&rows=${xterm.value.rows}`
   )
 
   socketOnClose()
@@ -83,9 +94,7 @@ const initXterm = () => {
   })
 
   bindResizeEvents()
-  nextTick(() => {
-    resizeTerminal()
-  })
+  scheduleInitialFit()
 }
 
 const pingInterval = ref()
@@ -156,6 +165,9 @@ const bindResizeEvents = () => {
       resizeHandler?.()
     })
     resizeObserver.observe(xtermRef.value)
+    if (xtermRef.value.parentElement) {
+      resizeObserver.observe(xtermRef.value.parentElement)
+    }
   }
 }
 
@@ -180,7 +192,14 @@ const cleanup = () => {
 
   socket.value?.close()
   socket.value = undefined
-  xterm.value?.dispose()
+
+  // NOTE: FitAddon 在终端未完全初始化就销毁时可能抛出 "addon has not been loaded" 错误，
+  // 这是 xterm.js 的内部校验，防御性捕获即可，不影响实际清理逻辑
+  try {
+    xterm.value?.dispose()
+  } catch {
+    // 忽略 addon 未加载时的销毁异常
+  }
   xterm.value = null
   fitAddon.value = undefined
 }
@@ -200,11 +219,15 @@ onDeactivated(() => {
 
 <style lang="scss" scoped>
 .xterm {
+  display: flex;
+  flex: 1;
   width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   padding: 5px;
   background-color: #000;
   box-sizing: border-box;
+  overflow: hidden;
 }
 </style>

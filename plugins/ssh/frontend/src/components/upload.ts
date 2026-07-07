@@ -17,15 +17,13 @@ type SuccessCallback = (data: UploadSuccessData) => void
 type ErrorCallback = (error: Error) => void
 
 export class WebSocketUploader {
-  private wsServer: string
-  private finderId: number
+  private uploadURL: string
   private chunkSize: number
   private _progressIntervalMs: number
   private _startedSending: boolean
 
-  constructor(wsServer: string, finderId: number) {
-    this.wsServer = wsServer
-    this.finderId = finderId
+  constructor(uploadURL: string) {
+    this.uploadURL = uploadURL
     // 提升到 256KB，减少主线程事件与 JSON 开销（后端每 ~64KB 报告一次写入进度）
     this.chunkSize = 256 * 1024 // 256KB
     this._progressIntervalMs = 1000 // 进度节流间隔（1s 同步）
@@ -46,8 +44,7 @@ export class WebSocketUploader {
     }
 
     return new Promise((resolve, reject) => {
-      const wsURL = `${this.wsServer}/api/cmdb/finder/upload/ws?id=${this.finderId}`
-      const ws = new WebSocket(wsURL)
+      const ws = new WebSocket(this.uploadURL)
       const uploadId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       this._startedSending = false
 

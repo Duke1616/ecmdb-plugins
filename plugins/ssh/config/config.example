@@ -5,7 +5,7 @@ log:
 # 插件基础服务配置
 ssh:
   addr: ":18080"              # 插件监听的 HTTP 端口
-  upstream: ""                # ECMDB 主站网关反向代理访问该插件的 upstream 地址 (可选)
+  upstream: "http://127.0.0.1:18080"                # ECMDB 主站网关反向代理访问该插件的 upstream 地址 (可选)
   timeout_seconds: 5          # 远程主机 SSH 拨号连接超时时间 (秒)
 
 # etcd 注册中心配置 (全插件服务发现依赖基础)
@@ -19,3 +19,8 @@ grpc:
     ecmdb:
       name: "ecmdb"            # 在 etcd 注册中心里注册的主站服务名称
       auth_token: ""           # 微服务间调用鉴权的 JWT 令牌 (按需配置)
+
+# EIAM 权限中心配置 (用于 CheckLogin 与权限同步)
+policy:
+  auth_url: "http://127.0.0.1:9000"
+  discovery_url: "http://127.0.0.1:9000"

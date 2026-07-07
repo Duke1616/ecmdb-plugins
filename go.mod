@@ -6,6 +6,8 @@ require (
 	github.com/Duke1616/ecmdb v1.11.0
 	github.com/Duke1616/eiam v0.0.17
 	github.com/Duke1616/etask v0.0.7
+	github.com/Duke1616/vuefinder-go v1.1.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/wire v0.7.0
 	github.com/gorilla/websocket v1.5.3
@@ -13,8 +15,10 @@ require (
 	github.com/pkg/sftp v1.13.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	go.etcd.io/etcd/client/v3 v3.6.11
 	golang.org/x/crypto v0.50.0
 	google.golang.org/grpc v1.79.3
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -39,7 +43,6 @@ require (
 	github.com/ecodeclub/ekit v0.0.10 // indirect
 	github.com/ecodeclub/ginx v0.0.3-0.20250724125208-2ec06fc61450 // indirect
 	github.com/fasthttp/websocket v1.5.2 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/cors v1.7.7 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
@@ -97,7 +100,6 @@ require (
 	github.com/valyala/fasthttp v1.45.0 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.11 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.11 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.11 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect
@@ -120,9 +122,12 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 replace github.com/Duke1616/ecmdb => ../ecmdb
+
+replace github.com/Duke1616/eiam => ../eiam
+
+replace github.com/Duke1616/vuefinder-go => ../vuefinder-go

@@ -70,6 +70,7 @@ import { RemoteDriver } from "vuefinder"
 import { WebSocketUploader } from "./components/upload"
 import type { PrefixConfig } from "./utils/prefix-config"
 import { getPrefixConfig, formatSize, formatETA } from "./utils/prefix-config"
+import { getRuntimeRequestHeaders } from "./utils/runtime-auth"
 
 import { ElMessage, ElMessageBox } from "element-plus"
 
@@ -78,9 +79,11 @@ const props = withDefaults(
   defineProps<{
     resource_id?: string
     prefix?: PrefixConfig
+    apiBase: string
   }>(),
   {
-    resource_id: "1"
+    resource_id: "1",
+    apiBase: ""
   }
 )
 
@@ -119,8 +122,14 @@ const vuefinderRef = ref<VueFinderInstance | null>(null)
 
 // 配置常量
 const prefixConfig = computed(() => props.prefix || getPrefixConfig())
-const BASE_URL = computed(() => `${prefixConfig.value.prefix}/api/cmdb/finder`)
+const BASE_URL = computed(() => `${prefixConfig.value.prefix}${props.apiBase}/sftp`)
 const FINDER_ID = computed(() => Number(props.resource_id) || 20)
+const uploadWsURL = computed(() => `${prefixConfig.value.wsServer}${props.apiBase}/sftp/upload/ws?id=${FINDER_ID.value}`)
+const requestHeaders = computed(() =>
+  getRuntimeRequestHeaders({
+    "X-Finder-ID": String(FINDER_ID.value)
+  })
+)
 const UI_UPDATE_MS = 1000 // 1s 同步一次
 
 // 上传面板与任务列表
@@ -237,9 +246,7 @@ class CustomRemoteDriver extends RemoteDriver {
 const driver = computed(() => {
   return new CustomRemoteDriver({
     baseURL: BASE_URL.value,
-    headers: {
-      "X-Finder-ID": FINDER_ID.value
-    },
+    headers: requestHeaders.value,
     retry: 0,
     url: {
       list: "/files",
@@ -261,7 +268,7 @@ const driver = computed(() => {
 })
 
 // 创建 WebSocket 上传器实例
-const wsUploader = computed(() => new WebSocketUploader(prefixConfig.value.wsServer, FINDER_ID.value))
+const wsUploader = computed(() => new WebSocketUploader(uploadWsURL.value))
 
 // 使用 VueFinder 的 customUploader prop 配置 WebSocket 上传
 // 参考: https://github.com/n1crack/vuefinder/blob/master/docs/api-reference/props.md
@@ -410,7 +417,7 @@ const handleDownloadClick = async (event: MouseEvent) => {
   if (!href) return
 
   // 检查是否是下载链接（支持新旧路径格式）
-  const isDownloadLink = href.includes("/api/cmdb/finder/download") || href.includes("/api/finder/download")
+  const isDownloadLink = href.includes(`${props.apiBase}/sftp/download`) || href.includes("/sftp/download")
   if (!isDownloadLink) return
 
   event.preventDefault()

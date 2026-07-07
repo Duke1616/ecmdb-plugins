@@ -21,6 +21,7 @@
 *.test
 *.out
 *.prof
+logs/
 
 # 前端依赖与构建产物（全局忽略各子插件内的前端 node_modules 及打包产物）
 **/node_modules/
