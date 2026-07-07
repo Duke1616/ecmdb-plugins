@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Duke1616/ecmdb v1.11.0
-	github.com/Duke1616/eiam v0.0.17
+	github.com/Duke1616/eiam v0.0.20
 	github.com/Duke1616/etask v0.0.7
 	github.com/Duke1616/vuefinder-go v1.1.0
 	github.com/fsnotify/fsnotify v1.9.0
@@ -127,7 +127,3 @@ require (
 )
 
 replace github.com/Duke1616/ecmdb => ../ecmdb
-
-replace github.com/Duke1616/eiam => ../eiam
-
-replace github.com/Duke1616/vuefinder-go => ../vuefinder-go

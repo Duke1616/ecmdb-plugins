@@ -6,9 +6,14 @@ tasks:
       - task --list-all
 
   run:
-    desc: 启动服务
+    desc: 启动默认插件服务（当前为 SSH 插件）
     cmds:
-      -  EGO_DEBUG=true go run main.go server
+      - task: run:ssh
+
+  run:ssh:
+    desc: 启动 SSH 插件服务
+    cmds:
+      - EGO_DEBUG=true go run plugins/ssh/cmd/main.go server
 
   gen:
     desc: 代码生成
