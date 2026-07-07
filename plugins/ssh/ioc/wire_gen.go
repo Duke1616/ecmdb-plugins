@@ -8,15 +8,12 @@ package ioc
 
 import (
 	"github.com/Duke1616/ecmdb-plugins/ioc"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 )
 
 // Injectors from wire.go:
 
-func InitApp() (*App, error) {
-	v := InitGinMiddlewares()
-	sdk := InitPolicySDK()
-	syncer := InitPermSyncer()
-	v2 := InitProviders()
+func InitApp() (*bootstrap.PluginApp, error) {
 	config := InitConfig()
 	client := ioc.InitEtcdClient()
 	registry := ioc.InitRegistry(client)
@@ -24,10 +21,6 @@ func InitApp() (*App, error) {
 	contextResolver := InitContextResolver(resolver)
 	handler := InitSSHHandler(config, contextResolver)
 	listener := InitListener(config)
-	component := InitWebServer(v, sdk, syncer, v2, handler, listener)
-	app := &App{
-		Web:      component,
-		Resolver: resolver,
-	}
-	return app, nil
+	pluginApp := InitWebServer(config, handler, listener, resolver)
+	return pluginApp, nil
 }

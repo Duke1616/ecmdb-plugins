@@ -2,12 +2,14 @@
 
 package ioc
 
-import "github.com/google/wire"
+import (
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
+	"github.com/google/wire"
+)
 
-func InitApp() (*App, error) {
+func InitApp() (*bootstrap.PluginApp, error) {
 	wire.Build(
 		WebSet,
-		wire.Struct(new(App), "*"),
 	)
 	return nil, nil
 }

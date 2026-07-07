@@ -27,22 +27,37 @@
 开发并运行一个全新的插件，通常包含以下五个核心步骤：
 
 ### 1. 定义自描述元数据与拓扑模型
-在插件的 `internal/define/definition.go` 中实现 `plugin.Definition` 接口，定义：
+在插件的 `internal/define/definition.go` 中实现 `plugin.Definition` 的元数据与拓扑定义：
 - **Action 关联动作**：定义操作菜单（如 `terminal`、`sftp`）及其在主站前端的呈现参数（如 workspace 布局）。
 - **Setup 关联模型**：定义插件运行需要的 CMDB 资源模型（如主机模型 `host`，网关模型 `AuthGateway`）和它们的关系拓扑（如多对多关系）。
 - **Bind 数据绑定**：定义一个 Go 结构体（如 `ConnectionTarget`），通过结构体 Tag 声明当 Action 触发时，主站应该将 CMDB 实例中的哪些属性字段（包含密码、私钥等）映射拼装好投递给插件后端。
 
-### 2. 托管静态资源与业务路由
-在插件服务中实现业务 API。对于前端微组件所需的静态资源，将其放置在 `frontend/dist/` 下，并在后端的 `PublicRoutes` 注册静态资源托管：
-```go
-// 托管独立编译打包出的前端静态文件目录
-server.Static("/static", "./plugins/<plugin_name>/frontend/dist")
-```
+### 2. 实现业务逻辑并实现插件契约
+在插件中编写具体的业务处理器（如 `Handler`），并使其实现通用的 `bootstrap.IPlugin` 契约接口：
+- 实现 `ID()` 返回插件唯一标识，实现 `Name()` 返回名称。
+- 实现 `Definition()` 直接导出第一步中定义的元数据。
+- 实现 `RegisterPrivateRoutes(router *gin.RouterGroup)`，只将插件特有的私有核心 API 挂载至传入的路由组。
 
-### 3. 实现注册与能力声明接口
-在插件服务中暴露以下路由和注册逻辑：
-- 暴露 `GET /.well-known/ecmdb-plugin`，以 JSON 格式直接输出上述定义的 `plugin.Definition` 元数据。
-- 服务启动时，通过 gRPC 客户端发起请求，调用主站的 `RegisterPlugin` 接口，主动将自身的 `plugin_id` 和物理访问地址 `upstream` 注册至主站。主站获取后会自动反向拉取自描述定义，同步模型定义与 Action 菜单。
+### 3. 使用 `bootstrap` 一键引导服务
+在插件的依赖注入（IoC）层，通过调用通用脚手架一键拉起与装配整个微服务容器。例如在 `ioc/web.go` 中：
+```go
+func InitWebServer(
+	cfg bootstrap.Config,
+	sshHdl *sshweb.Handler,
+	listener net.Listener,
+	resolver *common_grpc.Resolver,
+) *bootstrap.PluginApp {
+	return bootstrap.NewPluginApp(bootstrap.BootstrapOptions{
+		Plugin:              sshHdl,
+		Resolver:            resolver,
+		Upstream:            cfg.Upstream,
+		StaticDist:          "./plugins/<plugin_name>/frontend/dist",
+		Listener:            listener,
+		PermissionProviders: nil, // 若无特殊权限控制点可留空
+	})
+}
+```
+框架内部会自动托管自描述 Well-known 路由、健康检查、日志与 CORS 中间件、前端 UMD 静态托管、EIAM 权限路由同步及主站 gRPC 自动注册（含 `ekit/retry` 优雅指数重避重试机制）。
 
 ### 4. 编译打包微组件前端 (UMD)
 在 `frontend/` 下开发前端组件。为避免体积冗余，需在前端打包工具（如 `vite.config.ts`）中进行如下配置：
@@ -51,9 +66,9 @@ server.Static("/static", "./plugins/<plugin_name>/frontend/dist")
 - 确保 JS 与 CSS 合并打包输出为 `index.umd.js` 和 `index.css` 并输出至 `dist/` 目录。
 
 ### 5. 消费上下文并建立物理连接
-在业务逻辑处理中（例如处理连接验证请求），利用主站提供的 gRPC 客户端：
+在业务逻辑处理中，利用主站提供的 gRPC 客户端：
 - 向主站发送 `ResolveActionContext` 请求，传入 Resource ID。
-- 将主站返回的解密后的上下文数据反序列化为第一步中声明的绑定结构体，直接提取最终的明文密码、私钥以及跳板机网关拓扑，调用底层库发起物理连接。
+- 将主站返回的解密后的上下文数据反序列化为第一步中声明的绑定结构体，直接提取最终的明文密码、私钥以及跳板机网关拓扑，利用通用配置 `bootstrap.PluginConfig` 中的各项指标建立底层的物理连接。
 
 ---
 

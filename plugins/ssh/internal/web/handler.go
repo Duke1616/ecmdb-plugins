@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/config"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	_ "github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/ssh"
 	"github.com/Duke1616/ecmdb/pkg/ginx"
@@ -35,7 +35,7 @@ type Handler struct {
 	capability.IRegistry
 }
 
-func NewHandler(cfg config.Config) *Handler {
+func NewHandler(cfg bootstrap.PluginConfig) *Handler {
 	resolver := cfg.Resolver
 	if resolver == nil {
 		resolver = missingResolver{}
@@ -52,7 +52,7 @@ func NewHandler(cfg config.Config) *Handler {
 		session:   term.NewSessionPool(),
 		timeout:   timeout,
 		finder:    newFinderRuntime(),
-		IRegistry: capability.NewRegistry("cmdb", "ssh", "资产仓库/SSH 插件"),
+		IRegistry: bootstrap.NewRegistry("ssh", "资产仓库/SSH 插件"),
 	}
 }
 
@@ -65,16 +65,20 @@ var upgrader = websocket.Upgrader{
 	Subprotocols: []string{"guacamole"},
 }
 
-func (h *Handler) PublicRoutes(server *gin.Engine) {
-	server.GET(plugin.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(h.provider)))
-	server.GET("/healthz", h.healthz)
-
-	// 托管独立编译打包出的前端静态文件目录
-	server.Static("/static", "./plugins/ssh/frontend/dist")
+func (h *Handler) ID() string {
+	return define.PluginUID
 }
 
-func (h *Handler) PrivateRoutes(server *gin.Engine) {
-	terminal := server.Group("/terminal")
+func (h *Handler) Name() string {
+	return "ssh"
+}
+
+func (h *Handler) Definition() (plugin.Definition, error) {
+	return h.provider.Definition()
+}
+
+func (h *Handler) RegisterPrivateRoutes(router *gin.RouterGroup) {
+	terminal := router.Group("/terminal")
 	terminal.POST("/connect", h.Capability("终端连接验证", "connect").
 		Handle(ginx.WrapBody(h.Connect)),
 	)
@@ -82,15 +86,8 @@ func (h *Handler) PrivateRoutes(server *gin.Engine) {
 		Handle(ginx.Ws(h.SshSessionTunnel)),
 	)
 
-	sftpGroup := server.Group("/sftp")
+	sftpGroup := router.Group("/sftp")
 	registerSFTPRoutes(sftpGroup, h)
-}
-
-func (h *Handler) healthz(ctx *gin.Context) {
-	ctx.PureJSON(http.StatusOK, gin.H{
-		"status":    "ok",
-		"plugin_id": define.PluginUID,
-	})
 }
 
 func (h *Handler) Connect(ctx *gin.Context, req ConnectReq) (ginx.Result, error) {

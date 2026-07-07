@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/config"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/ecmdb/pkg/term"
@@ -16,8 +16,8 @@ import (
 func TestWellKnown(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	handler := NewHandler(config.Config{Upstream: "http://ssh-plugin:8080"})
-	handler.PublicRoutes(engine)
+	handler := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
+	engine.GET(plugin.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(handler)))
 
 	req := httptest.NewRequest(http.MethodGet, plugin.WellKnownPath, nil)
 	rec := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestConnectTypeSpec(t *testing.T) {
 func TestReplaceSessionClosesPreviousSession(t *testing.T) {
 	t.Parallel()
 
-	h := NewHandler(config.Config{Upstream: "http://ssh-plugin:8080"})
+	h := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
 	resourceID := int64(101)
 	prev := &stubSession{}
 	next := &stubSession{}

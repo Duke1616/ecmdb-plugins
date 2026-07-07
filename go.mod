@@ -7,6 +7,7 @@ require (
 	github.com/Duke1616/eiam v0.0.20
 	github.com/Duke1616/etask v0.0.7
 	github.com/Duke1616/vuefinder-go v1.1.0
+	github.com/ecodeclub/ekit v0.0.10
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/wire v0.7.0
@@ -40,7 +41,6 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ecodeclub/ekit v0.0.10 // indirect
 	github.com/ecodeclub/ginx v0.0.3-0.20250724125208-2ec06fc61450 // indirect
 	github.com/fasthttp/websocket v1.5.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect

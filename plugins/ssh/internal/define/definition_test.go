@@ -3,12 +3,12 @@ package define
 import (
 	"testing"
 
-	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/config"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 )
 
 func TestDefinition(t *testing.T) {
-	def, err := NewProvider(config.Config{Upstream: "http://ssh-plugin:8080"}).Definition()
+	def, err := NewProvider(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"}).Definition()
 	if err != nil {
 		t.Fatalf("Definition() error = %v", err)
 	}

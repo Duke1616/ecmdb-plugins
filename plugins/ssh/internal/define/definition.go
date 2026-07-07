@@ -3,7 +3,7 @@ package define
 import (
 	"sort"
 
-	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/config"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/ecmdb/pkg/term"
 )
@@ -17,10 +17,10 @@ const (
 )
 
 type Provider struct {
-	cfg config.Config
+	cfg bootstrap.PluginConfig
 }
 
-func NewProvider(cfg config.Config) Provider {
+func NewProvider(cfg bootstrap.PluginConfig) Provider {
 	return Provider{cfg: cfg}
 }
 

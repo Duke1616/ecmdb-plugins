@@ -7,10 +7,6 @@ import (
 
 var WebSet = wire.NewSet(
 	InitConfig,
-	InitGinMiddlewares,
-	InitPolicySDK,
-	InitPermSyncer,
-	InitProviders,
 	ioc.InitEtcdClient,
 	ioc.InitRegistry,
 	InitResolverClient,

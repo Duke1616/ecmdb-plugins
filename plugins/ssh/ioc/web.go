@@ -1,25 +1,25 @@
 package ioc
 
 import (
-	"context"
 	"net"
-	"time"
 
 	pluginv1 "github.com/Duke1616/ecmdb-plugins/api/proto/gen/ecmdb/plugin/v1"
+	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	common_grpc "github.com/Duke1616/ecmdb-plugins/pkg/grpc"
-	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	sshweb "github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/web"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
-	"github.com/Duke1616/eiam/pkg/web/capability"
-	"github.com/Duke1616/eiam/pkg/web/middleware"
-	"github.com/Duke1616/eiam/pkg/web/sdk"
 	grpcpkg "github.com/Duke1616/etask/pkg/grpc"
 	"github.com/Duke1616/etask/pkg/grpc/registry"
-	"github.com/gin-gonic/gin"
-	"github.com/gotomicro/ego/core/elog"
-	"github.com/gotomicro/ego/server/egin"
 	"github.com/spf13/viper"
 )
+
+func InitConfig() bootstrap.Config {
+	return bootstrap.LoadConfig("ssh")
+}
+
+func InitListener(cfg bootstrap.Config) net.Listener {
+	return bootstrap.InitListener(cfg.Addr)
+}
 
 func InitResolverClient(reg registry.Registry) *common_grpc.Resolver {
 	var cfg grpcpkg.ClientConfig
@@ -44,50 +44,27 @@ func InitContextResolver(resolver *common_grpc.Resolver) plugin.ContextResolver 
 	return resolver
 }
 
-func InitSSHHandler(cfg Config, resolver plugin.ContextResolver) *sshweb.Handler {
-	sshCfg := cfg.SSHConfig()
-	sshCfg.Resolver = resolver
-	return sshweb.NewHandler(sshCfg)
+func InitSSHHandler(cfg bootstrap.Config, resolver plugin.ContextResolver) *sshweb.Handler {
+	return sshweb.NewHandler(bootstrap.PluginConfig{
+		Upstream:       cfg.Upstream,
+		Resolver:       resolver,
+		TimeoutSeconds: cfg.TimeoutSeconds,
+	})
 }
 
+// InitWebServer 通过通用的 bootstrap 框架一键装配 SSH 插件服务
 func InitWebServer(
-	mdls []gin.HandlerFunc,
-	policySDK *sdk.SDK,
-	syncer capability.Syncer,
-	providers []capability.PermissionProvider,
+	cfg bootstrap.Config,
 	sshHdl *sshweb.Handler,
 	listener net.Listener,
-) *egin.Component {
-	server := egin.DefaultContainer().Build(egin.WithListener(listener))
-	server.Engine.ContextWithFallback = true
-	server.Use(mdls...)
-	policySDK.WithPathPrefix("/api/plugin-runtime/" + define.PluginUID)
-
-	sshHdl.PublicRoutes(server.Engine)
-
-	server.Use(policySDK.CheckLogin())
-	server.Use(policySDK.CheckPolicy())
-
-	sshHdl.PrivateRoutes(server.Engine)
-
-	go func() {
-		time.Sleep(time.Second)
-		if err := syncer.WithOption(
-			capability.WithSource(define.PluginUID),
-			capability.WithAPIPathPrefix("/api/plugin-runtime/"+define.PluginUID),
-			capability.WithPermissions(providers...),
-			capability.WithRouter(server.Engine),
-		).Sync(context.Background()); err != nil {
-			elog.Error("EIAM 资产注册控制器启动失败", elog.FieldErr(err))
-		}
-	}()
-
-	return server
-}
-
-func InitGinMiddlewares() []gin.HandlerFunc {
-	return []gin.HandlerFunc{
-		middleware.AccessLogger(),
-		middleware.NewCorsBuilder().Build(),
-	}
+	resolver *common_grpc.Resolver,
+) *bootstrap.PluginApp {
+	return bootstrap.NewPluginApp(bootstrap.BootstrapOptions{
+		Plugin:              sshHdl,
+		Resolver:            resolver,
+		Upstream:            cfg.Upstream,
+		StaticDist:          "./plugins/ssh/frontend/dist",
+		Listener:            listener,
+		PermissionProviders: nil,
+	})
 }
