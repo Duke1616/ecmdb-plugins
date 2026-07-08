@@ -14,6 +14,8 @@ import (
 
 type sshConnector struct{}
 
+const sshKeepaliveRequest = "keepalive@openssh.com"
+
 func (s *sshConnector) Name() string {
 	return "ssh"
 }
@@ -105,7 +107,7 @@ func (t *sshTerminalSession) Ping() error {
 	if t.client == nil {
 		return nil
 	}
-	_, _, err := t.client.Conn.SendRequest("PING", true, nil)
+	_, _, err := t.client.Conn.SendRequest(sshKeepaliveRequest, false, nil)
 	return err
 }
 

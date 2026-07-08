@@ -106,7 +106,9 @@ const socketOnOpen = () => {
         data: ""
       }
 
-      socket.value!.send(JSON.stringify(message))
+      if (socket.value?.readyState === WebSocket.OPEN) {
+        socket.value.send(JSON.stringify(message))
+      }
     }, 10000)
   }
 }
