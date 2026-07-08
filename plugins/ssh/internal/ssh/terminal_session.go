@@ -16,7 +16,11 @@ import (
 	golangssh "golang.org/x/crypto/ssh"
 )
 
-const terminalFlushInterval = 60 * time.Millisecond
+const (
+	terminalFlushInterval = 60 * time.Millisecond
+	websocketPingInterval = 25 * time.Second
+	websocketWriteWait    = 5 * time.Second
+)
 
 type sshTerminalSession struct {
 	client       *golangssh.Client
@@ -112,21 +116,39 @@ func (t *sshTerminalSession) Write(data []byte) error {
 }
 
 func (t *sshTerminalSession) Ping() error {
+	if err := t.keepSSHAlive(); err != nil {
+		return err
+	}
+	return t.sendMessage("pong", "")
+}
+
+func (t *sshTerminalSession) keepSSHAlive() error {
 	if t.client != nil {
 		if _, _, err := t.client.Conn.SendRequest(sshKeepaliveRequest, false, nil); err != nil {
 			return err
 		}
 	}
-	return t.sendMessage("pong", "")
+	return nil
 }
 
 func (t *sshTerminalSession) send() {
 	defer t.buf.Reset()
+	pingTicker := time.NewTicker(websocketPingInterval)
+	defer pingTicker.Stop()
 
 	for {
 		select {
 		case <-t.ctx.Done():
 			return
+		case <-pingTicker.C:
+			if err := t.keepSSHAlive(); err != nil {
+				t.Stop()
+				return
+			}
+			if err := t.sendControl(websocket.PingMessage, nil); err != nil {
+				t.Stop()
+				return
+			}
 		case <-t.tick.C:
 			msg := t.buf.String()
 			if msg == "" {
@@ -178,6 +200,12 @@ func (t *sshTerminalSession) sendMessage(operation, data string) error {
 	t.writeMu.Lock()
 	defer t.writeMu.Unlock()
 	return t.conn.WriteMessage(websocket.TextMessage, message)
+}
+
+func (t *sshTerminalSession) sendControl(messageType int, data []byte) error {
+	t.writeMu.Lock()
+	defer t.writeMu.Unlock()
+	return t.conn.WriteControl(messageType, data, time.Now().Add(websocketWriteWait))
 }
 
 var _ term.TerminalSession = (*sshTerminalSession)(nil)
