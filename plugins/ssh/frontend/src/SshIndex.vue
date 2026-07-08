@@ -353,6 +353,7 @@ onUnmounted(() => {
   min-height: 0;
   min-width: 0;
   gap: 12px;
+  box-sizing: border-box;
   background: transparent;
   width: 100%;
   overflow: hidden;
@@ -478,8 +479,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 36px;
-  padding: 0 4px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(10, 15, 24, 0.86);
   color: #334155;
 }
 
@@ -517,7 +521,7 @@ onUnmounted(() => {
   min-height: 0;
   width: 100%;
   height: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px dashed #cbd5e1;
   background: rgba(255, 255, 255, 0.82);
   display: flex;
@@ -553,7 +557,7 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
   width: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid #dbe3ee;
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);

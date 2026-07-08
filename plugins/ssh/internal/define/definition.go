@@ -39,7 +39,7 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			"SSH 终端",
 			plugin.Icon("terminal"),
 			plugin.UI(plugin.UIBuiltinTerminal),
-			plugin.ActionRuntime(workspaceRuntime("SSH 终端", "Web Shell", "host")),
+			plugin.ActionRuntime(workspaceRuntime("Web Shell", "host", true)),
 			plugin.UseBinding(hostBindingUID),
 		).
 		Action(
@@ -47,7 +47,7 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			"文件管理",
 			plugin.Icon("folder"),
 			plugin.UI(plugin.UIBuiltinSFTP),
-			plugin.ActionRuntime(workspaceRuntime("文件管理", "Web Sftp", "host")),
+			plugin.ActionRuntime(workspaceRuntime("Web Sftp", "host", true)),
 			plugin.UseBinding(hostBindingUID),
 		).
 		Setup(
@@ -197,26 +197,23 @@ func authOptions() []string {
 	return []string{"passwd", "publickey", "passphrase"}
 }
 
-func workspaceRuntime(title string, connectionType string, modelUID string) plugin.ActionRuntimeSpec {
+func workspaceRuntime(connectionType string, modelUID string, sidebarEnabled bool) plugin.ActionRuntimeSpec {
+	var sidebar *plugin.RuntimeSidebarSpec
+	if sidebarEnabled {
+		sidebar = &plugin.RuntimeSidebarSpec{
+			Enabled: &sidebarEnabled,
+			Resource: &plugin.RuntimeSidebarResourceSpec{
+				ModelUID: modelUID,
+			},
+		}
+	}
 	return plugin.ActionRuntimeSpec{
 		Layout: "workspace",
-		Title:  title,
 		Props: map[string]any{
 			"connectionType": connectionType,
 			"autoConnect":    true,
 		},
-		Sidebar: &plugin.RuntimeSidebarSpec{
-			Enabled:           boolPtr(true),
-			Mode:              "resource-list",
-			Title:             "资源列表",
-			SearchPlaceholder: "搜索资源名称或 ID",
-			EmptyText:         "暂无资源数据",
-			Collapsible:       boolPtr(true),
-			Resource: &plugin.RuntimeSidebarResourceSpec{
-				ModelUID: modelUID,
-				Limit:    20,
-			},
-		},
+		Sidebar: sidebar,
 	}
 }
 

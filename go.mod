@@ -3,7 +3,7 @@ module github.com/Duke1616/ecmdb-plugins
 go 1.25.0
 
 require (
-	github.com/Duke1616/ecmdb v1.11.1-0.20260707124550-10107d31af9b
+	github.com/Duke1616/ecmdb v1.11.1-0.20260708073024-b555cb32a07c
 	github.com/Duke1616/eiam v0.0.20
 	github.com/Duke1616/etask v0.0.7
 	github.com/Duke1616/vuefinder-go v1.1.0
