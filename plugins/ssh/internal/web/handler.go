@@ -223,9 +223,10 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 					return err
 				}
 			case "ping":
-				if err = terminalSession.Ping(); err != nil {
-					return err
-				}
+				// The frontend heartbeat keeps the websocket/proxy path active.
+				// Do not forward it as an SSH global request; some servers close
+				// or reject unknown keepalive requests, which would drop the shell.
+				continue
 			}
 		}
 	}
