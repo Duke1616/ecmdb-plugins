@@ -6,7 +6,6 @@ import (
 	"net"
 
 	"github.com/Duke1616/ecmdb/pkg/term"
-	"github.com/Duke1616/ecmdb/pkg/term/sshx"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/sftp"
 	golangssh "golang.org/x/crypto/ssh"
@@ -70,45 +69,11 @@ func (t *sshTransport) Dial(ctx context.Context, ep term.Endpoint) (net.Conn, er
 }
 
 func (s *sshSession) NewTerminal(ws *websocket.Conn, rows, cols int) (term.TerminalSession, error) {
-	sshConn, err := sshx.NewSSHConnect(s.client, ws, rows, cols)
-	if err != nil {
-		return nil, err
-	}
-	return &sshTerminalSession{SSHConnect: sshConn, client: s.client}, nil
+	return newSSHTerminalSession(s.client, ws, rows, cols)
 }
 
 func (s *sshSession) NewSFTP() (*sftp.Client, error) {
 	return sftp.NewClient(s.client)
-}
-
-type sshTerminalSession struct {
-	*sshx.SSHConnect
-	client *golangssh.Client
-}
-
-func (t *sshTerminalSession) Start() {
-	t.SSHConnect.Start()
-}
-
-func (t *sshTerminalSession) Stop() {
-	t.SSHConnect.Stop()
-}
-
-func (t *sshTerminalSession) Resize(rows, cols int) error {
-	return t.WindowChange(rows, cols)
-}
-
-func (t *sshTerminalSession) Write(data []byte) error {
-	_, err := t.StdinPipe.Write(data)
-	return err
-}
-
-func (t *sshTerminalSession) Ping() error {
-	if t.client == nil {
-		return nil
-	}
-	_, _, err := t.client.Conn.SendRequest(sshKeepaliveRequest, false, nil)
-	return err
 }
 
 var _ term.Session = (*sshSession)(nil)

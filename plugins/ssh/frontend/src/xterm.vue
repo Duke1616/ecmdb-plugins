@@ -132,7 +132,10 @@ const socketOnError = () => {
 
 const socketOnMessage = () => {
   socket.value!.onmessage = (msg: MessageEvent) => {
-    const content = JSON.parse(msg.data as string) as { data: string }
+    const content = JSON.parse(msg.data as string) as { operation?: string; data: string }
+    if (content.operation === "pong") {
+      return
+    }
     xterm.value?.write(content.data)
   }
 }
