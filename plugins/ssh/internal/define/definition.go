@@ -30,7 +30,7 @@ func (p Provider) Definition() (plugin.Definition, error) {
 		PluginUID,
 		"SSH",
 		plugin.Type("builtin"),
-		plugin.Version("1.0.0"),
+		plugin.Version("1.0.1"),
 		plugin.Description("基于 CMDB 主机和登录网关关系提供 SSH 终端与 SFTP 文件管理能力。"),
 		plugin.ExternalServiceRuntime(p.cfg.Upstream, plugin.RuntimeHealthPath("/healthz")),
 	).
@@ -211,7 +211,6 @@ func workspaceRuntime(connectionType string, modelUID string, sidebarEnabled boo
 		Layout: "workspace",
 		Props: map[string]any{
 			"connectionType": connectionType,
-			"autoConnect":    true,
 		},
 		Sidebar: sidebar,
 	}

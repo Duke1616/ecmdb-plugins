@@ -28,11 +28,17 @@ func TestDefinition(t *testing.T) {
 	if got := def.Plugin.Actions[0].Runtime.Props["connectionType"]; got != "Web Shell" {
 		t.Fatalf("unexpected terminal connectionType: %v", got)
 	}
+	if _, ok := def.Plugin.Actions[0].Runtime.Props["autoConnect"]; ok {
+		t.Fatal("terminal action should not auto connect")
+	}
 	if def.Plugin.Actions[1].Runtime == nil {
 		t.Fatal("sftp runtime not found")
 	}
 	if got := def.Plugin.Actions[1].Runtime.Props["connectionType"]; got != "Web Sftp" {
 		t.Fatalf("unexpected sftp connectionType: %v", got)
+	}
+	if _, ok := def.Plugin.Actions[1].Runtime.Props["autoConnect"]; ok {
+		t.Fatal("sftp action should not auto connect")
 	}
 
 	runtime, ok := def.Plugin.Runtime()

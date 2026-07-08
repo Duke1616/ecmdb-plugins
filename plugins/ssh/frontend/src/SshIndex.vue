@@ -105,13 +105,10 @@ interface SshIndexProps {
   apiBase: string
   resourceId: string
   connectionType?: string
-  autoConnect?: boolean
   title?: string
 }
 
-const props = withDefaults(defineProps<SshIndexProps>(), {
-  autoConnect: false
-})
+const props = defineProps<SshIndexProps>()
 
 interface ConnectionOption {
   value: string
@@ -171,6 +168,20 @@ const connectionOptions: ConnectionOption[] = [
 const getCurrentOptionLabel = () => {
   const option = connectionOptions.find((opt) => opt.value === selectedOption.value)
   return option?.label || selectedOption.value
+}
+
+const getPreferredOption = () => {
+  if (props.connectionType) {
+    const option = connectionOptions.find((opt) => opt.value === props.connectionType && !opt.disabled)
+    if (option) {
+      return option
+    }
+  }
+  return connectionOptions.find((opt) => !opt.disabled)
+}
+
+const preselectConnectionOption = () => {
+  selectedOption.value = getPreferredOption()?.value || ""
 }
 
 // 方法
@@ -237,8 +248,8 @@ const connect = async () => {
 
 const disconnect = () => {
   isConnected.value = false
-  selectedOption.value = ""
   prefix.value = undefined
+  preselectConnectionOption()
   dialogVisible.value = true
 
   ElMessage.info("已断开连接")
@@ -246,30 +257,9 @@ const disconnect = () => {
 
 const resetConnectionState = () => {
   isConnected.value = false
-  selectedOption.value = ""
   prefix.value = undefined
-  dialogVisible.value = true
-}
-
-// 恢复连接状态
-const restoreConnection = () => {
-  if (props.connectionType && props.resourceId) {
-    const option = connectionOptions.find((opt) => opt.value === props.connectionType && !opt.disabled)
-    if (option) {
-      const shouldRefreshSession =
-        !isConnected.value || selectedOption.value !== props.connectionType || !prefix.value?.wsServer
-
-      selectedOption.value = props.connectionType
-      prefix.value = getPrefixConfig()
-      if (shouldRefreshSession) {
-        sessionVersion.value += 1
-      }
-      isConnected.value = true
-      dialogVisible.value = false
-      return true
-    }
-  }
-  return false
+  preselectConnectionOption()
+  dialogVisible.value = Boolean(props.resourceId)
 }
 
 // 页面离开前确认
@@ -304,39 +294,20 @@ watch(
 
 watch(
   () => props.connectionType,
-  (value) => {
+  () => {
     if (!props.resourceId) return
-    if (value) {
-      restoreConnection()
-      return
-    }
     resetConnectionState()
   }
 )
 
-onMounted(async () => {
+onMounted(() => {
   if (!props.resourceId) {
     dialogVisible.value = false
     return
   }
 
-  if (props.connectionType && props.autoConnect) {
-    const option = connectionOptions.find((opt) => opt.value === props.connectionType && !opt.disabled)
-    if (option) {
-      selectedOption.value = option.value
-      await connect()
-      return
-    }
-  }
-
-  if (props.connectionType) {
-    restoreConnection()
-  } else {
-    const firstAvailable = connectionOptions.find((opt) => !opt.disabled)
-    if (firstAvailable) {
-      selectedOption.value = firstAvailable.value
-    }
-  }
+  preselectConnectionOption()
+  dialogVisible.value = true
 })
 
 onUnmounted(() => {
