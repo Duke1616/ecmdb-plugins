@@ -28,7 +28,7 @@ func newFinderRuntime() *finderRuntime {
 	}
 }
 
-func (r *finderRuntime) attach(resourceID int64, sess term.Session) error {
+func (r *finderRuntime) attach(sessionID int64, sess term.Session) error {
 	fileCapable, ok := sess.(term.FileCapable)
 	if !ok {
 		return fmt.Errorf("session does not implement FileCapable")
@@ -39,28 +39,28 @@ func (r *finderRuntime) attach(resourceID int64, sess term.Session) error {
 		return err
 	}
 
-	r.SetFinder(resourceID, singleStorageSFTPProvider{inner: sftpprovider.NewSftpFinder(client)})
-	r.markReady(resourceID)
+	r.SetFinder(sessionID, singleStorageSFTPProvider{inner: sftpprovider.NewSftpFinder(client)})
+	r.markReady(sessionID)
 	return nil
 }
 
-func (r *finderRuntime) markReady(resourceID int64) {
+func (r *finderRuntime) markReady(sessionID int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.ready[resourceID] = struct{}{}
+	r.ready[sessionID] = struct{}{}
 }
 
-func (r *finderRuntime) isReady(resourceID int64) bool {
+func (r *finderRuntime) isReady(sessionID int64) bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	_, ok := r.ready[resourceID]
+	_, ok := r.ready[sessionID]
 	return ok
 }
 
-func (r *finderRuntime) clear(resourceID int64) {
+func (r *finderRuntime) clear(sessionID int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.ready, resourceID)
+	delete(r.ready, sessionID)
 }
 
 type singleStorageSFTPProvider struct {

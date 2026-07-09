@@ -3,7 +3,6 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/Duke1616/ecmdb/pkg/ginx"
@@ -60,24 +59,24 @@ func (h *Handler) withFinder(next gin.HandlerFunc) gin.HandlerFunc {
 }
 
 func (h *Handler) ensureSFTPFinder(ctx *gin.Context) error {
-	resourceID, err := parseFinderResourceID(ctx)
+	sessionID, err := parseFinderSessionID(ctx)
 	if err != nil {
 		return err
 	}
 
-	if h.finder.isReady(resourceID) {
+	if h.finder.isReady(sessionID) {
 		return nil
 	}
 
-	sess, err := h.session.GetSession(resourceID)
+	sess, err := h.sessions.Get(sessionID)
 	if err != nil {
 		return err
 	}
 
-	return h.finder.attach(resourceID, sess)
+	return h.finder.attach(sessionID, sess)
 }
 
-func parseFinderResourceID(ctx *gin.Context) (int64, error) {
+func parseFinderSessionID(ctx *gin.Context) (int64, error) {
 	finderID := strings.TrimSpace(ctx.GetHeader("x-finder-id"))
 	if finderID == "" {
 		finderID = strings.TrimSpace(ctx.Query("id"))
@@ -86,10 +85,5 @@ func parseFinderResourceID(ctx *gin.Context) (int64, error) {
 		return 0, fmt.Errorf("finder id is required")
 	}
 
-	resourceID, err := strconv.ParseInt(finderID, 10, 64)
-	if err != nil || resourceID <= 0 {
-		return 0, fmt.Errorf("invalid finder id")
-	}
-
-	return resourceID, nil
+	return parsePositiveInt64(finderID, "finder id")
 }

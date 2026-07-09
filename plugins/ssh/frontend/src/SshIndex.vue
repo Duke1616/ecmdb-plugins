@@ -66,6 +66,7 @@
           v-if="selectedOption === 'Web Sftp'"
           :key="finderViewKey"
           :resource_id="resourceId"
+          :session-id="sessionId"
           :prefix="prefix"
           :api-base="apiBase"
         />
@@ -73,6 +74,7 @@
           v-else-if="selectedOption === 'Web Shell'"
           :key="xtermViewKey"
           :resource_id="resourceId"
+          :session-id="sessionId"
           :prefix="prefix"
           :api-base="apiBase"
         />
@@ -120,6 +122,13 @@ interface ConnectionOption {
   disabled?: boolean
 }
 
+interface ConnectResult {
+  msg?: string
+  data?: {
+    session_id?: number | string
+  }
+}
+
 // 计算属性
 const hasResource = computed(() => Boolean(props.resourceId))
 const sessionVersion = ref(0)
@@ -136,6 +145,7 @@ const dialogVisible = ref<boolean>(true)
 const isConnected = ref<boolean>(false)
 const loading = ref<boolean>(false)
 const selectedOption = ref<string>("")
+const sessionId = ref<string>("")
 const prefix = ref<PrefixConfig>()
 
 // 连接配置选项
@@ -243,6 +253,13 @@ const connect = async () => {
       throw new Error(`建立连接失败: HTTP ${response.status}`)
     }
 
+    const result = (await response.json()) as ConnectResult
+    const nextSessionId = String(result?.data?.session_id || "").trim()
+    if (!nextSessionId) {
+      throw new Error("建立连接失败: 缺少会话ID")
+    }
+
+    sessionId.value = nextSessionId
     prefix.value = getPrefixConfig()
     sessionVersion.value += 1
     isConnected.value = true
@@ -259,6 +276,7 @@ const connect = async () => {
 
 const disconnect = () => {
   isConnected.value = false
+  sessionId.value = ""
   prefix.value = undefined
   preselectConnectionOption()
   dialogVisible.value = true
@@ -268,6 +286,7 @@ const disconnect = () => {
 
 const resetConnectionState = () => {
   isConnected.value = false
+  sessionId.value = ""
   prefix.value = undefined
   preselectConnectionOption()
   dialogVisible.value = Boolean(props.resourceId)

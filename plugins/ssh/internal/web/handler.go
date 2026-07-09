@@ -29,7 +29,7 @@ func (missingResolver) ResolveActionContext(context.Context, plugin.ResolveReque
 type Handler struct {
 	provider define.Provider
 	resolver plugin.ContextResolver
-	session  *term.SessionPool
+	sessions *runtimeSessionStore
 	timeout  time.Duration
 	finder   *finderRuntime
 	capability.IRegistry
@@ -49,7 +49,7 @@ func NewHandler(cfg bootstrap.PluginConfig) *Handler {
 	return &Handler{
 		provider:  define.NewProvider(cfg),
 		resolver:  resolver,
-		session:   term.NewSessionPool(),
+		sessions:  newRuntimeSessionStore(),
 		timeout:   timeout,
 		finder:    newFinderRuntime(),
 		IRegistry: bootstrap.NewRegistry("ssh", "资产仓库/SSH 插件"),
@@ -98,30 +98,26 @@ func (h *Handler) Connect(ctx *gin.Context, req ConnectReq) (ginx.Result, error)
 		return ginx.Result{Msg: err.Error()}, err
 	}
 
-	if err := h.openAndStoreSession(ctx, req.ResourceId, spec.action); err != nil {
+	sessionID, err := h.openAndStoreSession(ctx, req.ResourceId, spec.action)
+	if err != nil {
 		return ginx.Result{}, err
 	}
 
-	return ginx.Result{Msg: spec.successMsg}, nil
+	return ginx.Result{Msg: spec.successMsg, Data: ConnectResp{SessionID: sessionID}}, nil
 }
 
-func (h *Handler) openAndStoreSession(ctx context.Context, resourceID int64, action string) error {
+func (h *Handler) openAndStoreSession(ctx context.Context, resourceID int64, action string) (int64, error) {
 	sess, err := h.openSSHSession(ctx, resourceID, action)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	h.replaceSession(resourceID, sess)
-	return nil
+	return h.sessions.Put(sess), nil
 }
 
-func (h *Handler) replaceSession(resourceID int64, next term.Session) {
-	if current, err := h.session.GetSession(resourceID); err == nil && current != nil {
-		_ = current.Close()
-	}
-
-	h.finder.clear(resourceID)
-	h.session.SetSession(resourceID, next)
+func (h *Handler) closeSession(sessionID int64) {
+	h.finder.clear(sessionID)
+	h.sessions.Close(sessionID)
 }
 
 func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action string) (term.Session, error) {
@@ -152,7 +148,7 @@ func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action s
 }
 
 func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
-	resourceIDInt, err := parseRequiredInt64Query(ctx, "resource_id")
+	sessionID, err := parseSessionIDQuery(ctx)
 	if err != nil {
 		return err
 	}
@@ -167,7 +163,7 @@ func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
 		return err
 	}
 
-	return h.wsSSHSession(ctx, resourceIDInt, colsInt, rowsInt)
+	return h.wsSSHSession(ctx, sessionID, colsInt, rowsInt)
 }
 
 const (
@@ -175,14 +171,15 @@ const (
 	wsPongWait     = 90 * time.Second
 )
 
-func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows int) error {
+func (h *Handler) wsSSHSession(ctx *gin.Context, sessionID int64, cols, rows int) error {
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
+	defer h.closeSession(sessionID)
 
-	sess, err := h.session.GetSession(resourceID)
+	sess, err := h.sessions.Get(sessionID)
 	if err != nil {
 		_ = conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
 		return err
@@ -261,15 +258,26 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 	}
 }
 
+func parseSessionIDQuery(ctx *gin.Context) (int64, error) {
+	if sessionID := ctx.Query("session_id"); sessionID != "" {
+		return parsePositiveInt64(sessionID, "session_id")
+	}
+	return parseRequiredInt64Query(ctx, "resource_id")
+}
+
 func parseRequiredInt64Query(ctx *gin.Context, key string) (int64, error) {
 	value := ctx.Query(key)
 	if value == "" {
 		return 0, fmt.Errorf("%s is required", key)
 	}
 
+	return parsePositiveInt64(value, key)
+}
+
+func parsePositiveInt64(value, name string) (int64, error) {
 	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return 0, err
+	if err != nil || parsed <= 0 {
+		return 0, fmt.Errorf("invalid %s", name)
 	}
 	return parsed, nil
 }

@@ -15,11 +15,13 @@ import type { PrefixConfig } from "./utils/prefix-config"
 const props = withDefaults(
   defineProps<{
     resource_id: string
+    sessionId?: string
     prefix: PrefixConfig | undefined
     apiBase: string
   }>(),
   {
     resource_id: "1",
+    sessionId: "",
     apiBase: ""
   }
 )
@@ -73,7 +75,7 @@ const initXterm = () => {
   xterm.value.focus()
 
   socket.value = new WebSocket(
-    `${props.prefix.wsServer}${props.apiBase}/terminal/ws?resource_id=${props.resource_id}&cols=${xterm.value.cols}&rows=${xterm.value.rows}`
+    `${props.prefix.wsServer}${props.apiBase}/terminal/ws?session_id=${props.sessionId || props.resource_id}&cols=${xterm.value.cols}&rows=${xterm.value.rows}`
   )
 
   socketOnClose()

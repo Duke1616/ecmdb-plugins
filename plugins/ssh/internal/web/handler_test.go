@@ -95,36 +95,62 @@ func TestConnectTypeSpec(t *testing.T) {
 	}
 }
 
-func TestReplaceSessionClosesPreviousSession(t *testing.T) {
+func TestStoreSessionKeepsConcurrentSessions(t *testing.T) {
 	t.Parallel()
 
 	h := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
-	resourceID := int64(101)
-	prev := &stubSession{}
-	next := &stubSession{}
+	first := &stubSession{}
+	second := &stubSession{}
 
-	h.session.SetSession(resourceID, prev)
-	h.finder.markReady(resourceID)
+	firstID := h.sessions.Put(first)
+	secondID := h.sessions.Put(second)
 
-	h.replaceSession(resourceID, next)
-
-	if prev.closed != 1 {
-		t.Fatalf("previous session close count = %d, want 1", prev.closed)
+	if firstID == secondID {
+		t.Fatalf("session ids should be unique, got %d", firstID)
 	}
-	if h.finder.isReady(resourceID) {
-		t.Fatal("finder state should be cleared when replacing session")
+	if first.closed != 0 {
+		t.Fatalf("first session should not be closed, close count = %d", first.closed)
 	}
 
-	stored, err := h.session.GetSession(resourceID)
+	storedFirst, err := h.sessions.Get(firstID)
 	if err != nil {
 		t.Fatalf("GetSession() error = %v", err)
 	}
-	if stored != next {
-		t.Fatal("stored session was not replaced")
+	if storedFirst != first {
+		t.Fatal("first session was not stored")
+	}
+
+	storedSecond, err := h.sessions.Get(secondID)
+	if err != nil {
+		t.Fatalf("GetSession() error = %v", err)
+	}
+	if storedSecond != second {
+		t.Fatal("second session was not stored")
 	}
 }
 
-func TestParseFinderResourceID(t *testing.T) {
+func TestCloseSessionCleansRuntimeState(t *testing.T) {
+	t.Parallel()
+
+	h := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
+	session := &stubSession{}
+	sessionID := h.sessions.Put(session)
+	h.finder.markReady(sessionID)
+
+	h.closeSession(sessionID)
+
+	if session.closed != 1 {
+		t.Fatalf("session close count = %d, want 1", session.closed)
+	}
+	if h.finder.isReady(sessionID) {
+		t.Fatal("finder state should be cleared")
+	}
+	if _, err := h.sessions.Get(sessionID); err == nil {
+		t.Fatal("session should be deleted")
+	}
+}
+
+func TestParseFinderSessionID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("header first", func(t *testing.T) {
@@ -134,9 +160,9 @@ func TestParseFinderResourceID(t *testing.T) {
 		req.Header.Set("x-finder-id", "9")
 		ctx.Request = req
 
-		id, err := parseFinderResourceID(ctx)
+		id, err := parseFinderSessionID(ctx)
 		if err != nil {
-			t.Fatalf("parseFinderResourceID() error = %v", err)
+			t.Fatalf("parseFinderSessionID() error = %v", err)
 		}
 		if id != 9 {
 			t.Fatalf("id = %d, want 9", id)
@@ -148,9 +174,9 @@ func TestParseFinderResourceID(t *testing.T) {
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 		ctx.Request = httptest.NewRequest(http.MethodGet, "/sftp/files?id=22", nil)
 
-		id, err := parseFinderResourceID(ctx)
+		id, err := parseFinderSessionID(ctx)
 		if err != nil {
-			t.Fatalf("parseFinderResourceID() error = %v", err)
+			t.Fatalf("parseFinderSessionID() error = %v", err)
 		}
 		if id != 22 {
 			t.Fatalf("id = %d, want 22", id)

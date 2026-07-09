@@ -20,6 +20,10 @@ type ConnectReq struct {
 	ResourceId int64       `json:"resource_id"`
 }
 
+type ConnectResp struct {
+	SessionID int64 `json:"session_id"`
+}
+
 type connectSpec struct {
 	action     string
 	successMsg string

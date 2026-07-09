@@ -78,11 +78,13 @@ import { ElMessage, ElMessageBox } from "element-plus"
 const props = withDefaults(
   defineProps<{
     resource_id?: string
+    sessionId?: string
     prefix?: PrefixConfig
     apiBase: string
   }>(),
   {
     resource_id: "1",
+    sessionId: "",
     apiBase: ""
   }
 )
@@ -123,7 +125,7 @@ const vuefinderRef = ref<VueFinderInstance | null>(null)
 // 配置常量
 const prefixConfig = computed(() => props.prefix || getPrefixConfig())
 const BASE_URL = computed(() => `${prefixConfig.value.prefix}${props.apiBase}/sftp`)
-const FINDER_ID = computed(() => Number(props.resource_id) || 20)
+const FINDER_ID = computed(() => Number(props.sessionId || props.resource_id) || 20)
 const uploadWsURL = computed(() => `${prefixConfig.value.wsServer}${props.apiBase}/sftp/upload/ws?id=${FINDER_ID.value}`)
 const requestHeaders = computed(() =>
   getRuntimeRequestHeaders({
