@@ -16,6 +16,7 @@ func registerSFTPRoutes(group *gin.RouterGroup, h *Handler) {
 	wrap := h.withFinder
 
 	group.GET("/files", h.Capability("查看文件", "sftp_files").
+		NoSync().
 		Handle(wrap(vuefinderginx.Wrap(h.finder.Index))),
 	)
 	group.GET("/download", h.Capability("下载文件", "sftp_download").

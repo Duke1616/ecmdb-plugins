@@ -22,6 +22,9 @@ func TestDefinition(t *testing.T) {
 	if def.Plugin.Actions[0].Runtime == nil {
 		t.Fatal("terminal runtime not found")
 	}
+	if def.Plugin.Actions[0].Permission != PermissionConnect {
+		t.Fatalf("unexpected terminal permission: %s", def.Plugin.Actions[0].Permission)
+	}
 	if def.Plugin.Actions[0].Runtime.Layout != "workspace" {
 		t.Fatalf("unexpected terminal layout: %s", def.Plugin.Actions[0].Runtime.Layout)
 	}
@@ -33,6 +36,9 @@ func TestDefinition(t *testing.T) {
 	}
 	if def.Plugin.Actions[1].Runtime == nil {
 		t.Fatal("sftp runtime not found")
+	}
+	if def.Plugin.Actions[1].Permission != PermissionConnect {
+		t.Fatalf("unexpected sftp permission: %s", def.Plugin.Actions[1].Permission)
 	}
 	if got := def.Plugin.Actions[1].Runtime.Props["connectionType"]; got != "Web Sftp" {
 		t.Fatalf("unexpected sftp connectionType: %v", got)

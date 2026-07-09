@@ -1,6 +1,6 @@
 # SSH Frontend
 
-这里预留 SSH 插件前端。第一阶段可以继续使用 ECMDB 主前端内置的 `builtin:terminal` 和 `builtin:sftp` UI。
+SSH 插件前端以 UMD 方式构建，由 ECMDB 主站运行时视图动态加载 `Index` 入口组件。
 
 前端调用插件接口时只使用 ECMDB 下发的 `api_base`：
 

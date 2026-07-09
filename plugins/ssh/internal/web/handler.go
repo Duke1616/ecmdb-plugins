@@ -79,10 +79,12 @@ func (h *Handler) Definition() (plugin.Definition, error) {
 
 func (h *Handler) RegisterPrivateRoutes(router *gin.RouterGroup) {
 	terminal := router.Group("/terminal")
-	terminal.POST("/connect", h.Capability("终端连接验证", "connect").
+	terminal.POST("/connect", h.Capability("终端连接", "connect").
+		Needs("cmdb:ssh:ssh_session", "cmdb:ssh:sftp_files").
 		Handle(ginx.WrapBody(h.Connect)),
 	)
 	terminal.GET("/ws", h.Capability("终端会话", "ssh_session").
+		NoSync().
 		Handle(ginx.Ws(h.SshSessionTunnel)),
 	)
 
@@ -168,6 +170,11 @@ func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
 	return h.wsSSHSession(ctx, resourceIDInt, colsInt, rowsInt)
 }
 
+const (
+	wsPingInterval = 30 * time.Second
+	wsPongWait     = 90 * time.Second
+)
+
 func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows int) error {
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
@@ -194,6 +201,29 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 
 	terminalSession.Start()
 	defer terminalSession.Stop()
+
+	_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
+	})
+
+	// 定期发送协议层 Ping 帧，防止 Nginx 代理因无活动超时断开 WebSocket
+	pingDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(wsPingInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-pingDone:
+				return
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					return
+				}
+			}
+		}
+	}()
+	defer close(pingDone)
 
 	for {
 		select {
@@ -223,11 +253,9 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, resourceID int64, cols, rows in
 					return err
 				}
 			case "ping":
-				// The frontend heartbeat keeps the websocket path active; refresh the upstream SSH connection too.
 				if err = terminalSession.Ping(); err != nil {
 					return err
 				}
-				continue
 			}
 		}
 	}

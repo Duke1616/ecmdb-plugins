@@ -28,6 +28,7 @@ ECMDB 插件系统采用 **控制面与数据面分离** 的设计：
 ### 3. 微前端组件 (Plugin Frontend)
 * **微组件打包 (UMD)**：插件前端以 UMD 库格式打包。为保证轻量化和版本兼容，将 `vue`、`vue-router`、`pinia`、`element-plus` 等公共基座依赖声明为外部化依赖（External），打包时不包含其源码。
 * **无状态动态挂载**：前端通过全局挂载对象（如 `window.EcmdbPluginBuiltinSsh`）导出入口组件 `Index`，不自行处理敏感凭据，仅消费主站注入的运行参数（如 `apiBase` 和 `resourceId`）。
+* **约定式入口命名**：主站当前根据 `plugin_id` 推导 UMD 全局挂载名，规则为 `EcmdbPlugin` + `plugin_id` 按 `.`、`-` 分段后的 PascalCase。例如 `builtin.ssh` 对应 `EcmdbPluginBuiltinSsh`，`builtin.k8s-exec` 对应 `EcmdbPluginBuiltinK8sExec`。
 
 ---
 
@@ -70,6 +71,13 @@ sequenceDiagram
     UI->>UI: 使用 <component :is="resolvedComponent" /> 渲染组件
     Note over UI: 传入 apiBase 与 resourceId 作为 Props
 ```
+
+新增插件无需调整主站前端代码的前提是插件遵守运行时视图协议：
+* UMD 构建产物必须输出为 `/static/index.umd.js`，样式输出为 `/static/index.css`。
+* Vite/Rollup 的 UMD `name` 必须与主站返回的 `entry.global_name` 一致。
+* UMD 导出对象必须包含 `entry.component_name` 指定的入口组件；当前主站固定为 `Index`。
+* 插件前端只能通过运行时注入的 `apiBase` 访问自身后端接口，不能写死物理 upstream。
+* 插件使用的共享依赖应与主站基座提供的全局依赖名称一致，例如 `Vue`、`Pinia`、`ElementPlus`。
 
 ### 3. 反向代理与路径重写
 主站提供透明的反向代理网关。前端微组件调用的所有接口均以 `apiBase`（即 `/api/cmdb/plugin-runtime/:plugin_id`）为前缀发送给主站，主站将其透明转发给插件的物理地址，并去掉网关路由前缀。

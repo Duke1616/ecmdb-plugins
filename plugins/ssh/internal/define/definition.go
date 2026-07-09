@@ -13,6 +13,8 @@ const (
 	ActionTerminal = "terminal"
 	ActionSFTP     = "sftp"
 
+	PermissionConnect = "cmdb:ssh:connect"
+
 	inputEndpoint = "endpoint"
 )
 
@@ -38,7 +40,7 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			ActionTerminal,
 			"SSH 终端",
 			plugin.Icon("terminal"),
-			plugin.UI(plugin.UIBuiltinTerminal),
+			plugin.Permission(PermissionConnect),
 			plugin.ActionRuntime(workspaceRuntime("Web Shell", "host", true)),
 			plugin.UseBinding(hostBindingUID),
 		).
@@ -46,7 +48,7 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			ActionSFTP,
 			"文件管理",
 			plugin.Icon("folder"),
-			plugin.UI(plugin.UIBuiltinSFTP),
+			plugin.Permission(PermissionConnect),
 			plugin.ActionRuntime(workspaceRuntime("Web Sftp", "host", true)),
 			plugin.UseBinding(hostBindingUID),
 		).

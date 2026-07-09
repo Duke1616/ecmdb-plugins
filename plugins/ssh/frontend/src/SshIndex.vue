@@ -106,12 +106,14 @@ interface SshIndexProps {
   resourceId: string
   connectionType?: string
   title?: string
+  onActionChange?: (payload: { action: string; connectionType: string }) => void
 }
 
 const props = defineProps<SshIndexProps>()
 
 interface ConnectionOption {
   value: string
+  action: string
   label: string
   description: string
   icon: string
@@ -140,24 +142,29 @@ const prefix = ref<PrefixConfig>()
 const connectionOptions: ConnectionOption[] = [
   {
     value: "Web Shell",
+    action: "terminal",
     label: "Web Shell",
     description: "基于 Web 的终端连接",
     icon: "Stamp"
   },
   {
     value: "Web Sftp",
+    action: "sftp",
     label: "文件管理器",
     description: "SFTP 文件传输和管理",
     icon: "FolderOpened"
   },
   {
     value: "RDP",
+    action: "rdp",
     label: "远程桌面",
     description: "Windows 远程桌面连接",
-    icon: "Monitor"
+    icon: "Monitor",
+    disabled: true
   },
   {
     value: "VNC",
+    action: "vnc",
     label: "VNC 连接",
     description: "VNC 远程桌面连接",
     icon: "VideoCamera",
@@ -191,6 +198,10 @@ const selectOption = (option: ConnectionOption) => {
     return
   }
   selectedOption.value = option.value
+  props.onActionChange?.({
+    action: option.action,
+    connectionType: option.value
+  })
 }
 
 const handleCancel = () => {

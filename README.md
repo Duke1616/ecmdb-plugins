@@ -13,6 +13,8 @@
 ### 1. 微前端热插拔渲染 (UMD)
 主站前端提供通用的插件加载容器（基座），通过运行时视图接口（`GET /api/plugin/runtime/view`）获取插件对应的 `index.umd.js` 与 `index.css` 加载路径。基座动态向 Document 插入标签拉取 UMD 资源，并注入 Vue、Pinia、ElementPlus 等全局共享依赖，最终动态渲染挂载插件的前端组件。
 
+插件前端采用约定式加载：主站会根据 `plugin_id` 推导 UMD 全局挂载名，并固定读取入口组件 `Index`。例如插件 ID `builtin.ssh` 对应 `window.EcmdbPluginBuiltinSsh.Index`。
+
 ### 2. 网关代理与路由重写
 前端微组件发送的接口请求均以 `apiBase`（即 `/api/cmdb/plugin-runtime/:plugin_id`）为前缀。主站插件网关拦截此类请求，自动剥离前缀，根据注册的 `upstream` 代理转发。
 * 例如：向主站发起的静态资源请求 `/api/cmdb/plugin-runtime/builtin.ssh/static/index.umd.js` 将被代理转发至 SSH 插件后端的 `/static/index.umd.js`。
@@ -62,8 +64,16 @@ func InitWebServer(
 ### 4. 编译打包微组件前端 (UMD)
 在 `frontend/` 下开发前端组件。为避免体积冗余，需在前端打包工具（如 `vite.config.ts`）中进行如下配置：
 - 将 Vue 基座依赖外部化（`external`），运行时直接读取基座全局变量（如 `window.Vue`）。
-- 打包输出格式配置为 `umd`，设置与主站推导一致的全局变量名称挂载在 window 上（例如：`name: 'EcmdbPluginBuiltinSsh'`）。
+- 打包输出格式配置为 `umd`，设置与主站推导一致的全局变量名称挂载在 window 上（例如插件 ID `builtin.ssh` 对应 `name: 'EcmdbPluginBuiltinSsh'`）。
 - 确保 JS 与 CSS 合并打包输出为 `index.umd.js` 和 `index.css` 并输出至 `dist/` 目录。
+- 确保入口文件导出 `Index` 组件，因为主站运行时视图当前固定返回 `component_name: "Index"`。
+- 插件内部接口请求必须使用主站注入的 `apiBase` 前缀，避免写死主站或插件的物理地址。
+
+新增插件在不调整主站前端的情况下可被动态加载，但必须满足以下运行时约定：
+- 插件 ID 稳定唯一，且前端 UMD `name` 与主站推导的 `global_name` 一致。
+- 插件服务托管 `/static/index.umd.js` 和 `/static/index.css`。
+- UMD 包在 `window[global_name]` 下暴露 `Index` 组件。
+- 插件定义中的 Action 能被主站解析为运行时视图，并且插件运行态配置了可访问的 `upstream`。
 
 ### 5. 消费上下文并建立物理连接
 在业务逻辑处理中，利用主站提供的 gRPC 客户端：
