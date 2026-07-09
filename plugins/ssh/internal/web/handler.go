@@ -98,26 +98,32 @@ func (h *Handler) Connect(ctx *gin.Context, req ConnectReq) (ginx.Result, error)
 		return ginx.Result{Msg: err.Error()}, err
 	}
 
-	sessionID, err := h.openAndStoreSession(ctx, req.ResourceId, spec.action)
+	sessionToken, err := h.openAndStoreSession(ctx, req.ResourceId, spec.action)
 	if err != nil {
 		return ginx.Result{}, err
 	}
 
-	return ginx.Result{Msg: spec.successMsg, Data: ConnectResp{SessionID: sessionID}}, nil
+	return ginx.Result{Msg: spec.successMsg, Data: ConnectResp{SessionID: sessionToken}}, nil
 }
 
-func (h *Handler) openAndStoreSession(ctx context.Context, resourceID int64, action string) (int64, error) {
+func (h *Handler) openAndStoreSession(ctx context.Context, resourceID int64, action string) (string, error) {
 	sess, err := h.openSSHSession(ctx, resourceID, action)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
-	return h.sessions.Put(sess), nil
+	runtimeSess, err := h.sessions.Put(sess)
+	if err != nil {
+		return "", err
+	}
+	return runtimeSess.token, nil
 }
 
-func (h *Handler) closeSession(sessionID int64) {
-	h.finder.clear(sessionID)
-	h.sessions.Close(sessionID)
+func (h *Handler) closeSession(token string) {
+	if runtimeSess, err := h.sessions.Get(token); err == nil {
+		h.finder.clear(runtimeSess.finderID)
+	}
+	h.sessions.Close(token)
 }
 
 func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action string) (term.Session, error) {
@@ -148,7 +154,7 @@ func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action s
 }
 
 func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
-	sessionID, err := parseSessionIDQuery(ctx)
+	token, err := parseSessionTokenQuery(ctx)
 	if err != nil {
 		return err
 	}
@@ -163,7 +169,7 @@ func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
 		return err
 	}
 
-	return h.wsSSHSession(ctx, sessionID, colsInt, rowsInt)
+	return h.wsSSHSession(ctx, token, colsInt, rowsInt)
 }
 
 const (
@@ -171,23 +177,24 @@ const (
 	wsPongWait     = 90 * time.Second
 )
 
-func (h *Handler) wsSSHSession(ctx *gin.Context, sessionID int64, cols, rows int) error {
+func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) error {
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
-	defer h.closeSession(sessionID)
+	defer h.closeSession(token)
 
-	sess, err := h.sessions.Get(sessionID)
+	runtimeSess, err := h.sessions.Get(token)
 	if err != nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		_ = writeTerminalError(conn, err.Error())
 		return err
 	}
 
+	sess := runtimeSess.session
 	shellCapable, ok := sess.(term.ShellCapable)
 	if !ok {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("session not support shell"))
+		_ = writeTerminalError(conn, "session not support shell")
 		return fmt.Errorf("session does not implement ShellCapable")
 	}
 
@@ -258,28 +265,16 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, sessionID int64, cols, rows int
 	}
 }
 
-func parseSessionIDQuery(ctx *gin.Context) (int64, error) {
-	if sessionID := ctx.Query("session_id"); sessionID != "" {
-		return parsePositiveInt64(sessionID, "session_id")
-	}
-	return parseRequiredInt64Query(ctx, "resource_id")
+func writeTerminalError(conn *websocket.Conn, message string) error {
+	return conn.WriteJSON(sshx.NewMessage("stderr", message, 0, 0))
 }
 
-func parseRequiredInt64Query(ctx *gin.Context, key string) (int64, error) {
-	value := ctx.Query(key)
-	if value == "" {
-		return 0, fmt.Errorf("%s is required", key)
+func parseSessionTokenQuery(ctx *gin.Context) (string, error) {
+	token := ctx.Query("session_id")
+	if token == "" {
+		return "", fmt.Errorf("session_id is required")
 	}
-
-	return parsePositiveInt64(value, key)
-}
-
-func parsePositiveInt64(value, name string) (int64, error) {
-	parsed, err := strconv.ParseInt(value, 10, 64)
-	if err != nil || parsed <= 0 {
-		return 0, fmt.Errorf("invalid %s", name)
-	}
-	return parsed, nil
+	return token, nil
 }
 
 func parseRequiredIntQuery(ctx *gin.Context, key string) (int, error) {

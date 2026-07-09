@@ -52,6 +52,12 @@ const initXterm = () => {
     return
   }
 
+  const currentSessionId = (props.sessionId || "").trim()
+  if (!currentSessionId) {
+    ElMessage.error("缺少终端会话ID，请重新连接")
+    return
+  }
+
   const options = ref<ITerminalOptions & ITerminalInitOnlyOptions>({
     fontSize: 14,
     fontFamily: 'monaco, Consolas, "Lucida Console", monospace',
@@ -74,9 +80,19 @@ const initXterm = () => {
   fitAddon.value.fit()
   xterm.value.focus()
 
-  socket.value = new WebSocket(
-    `${props.prefix.wsServer}${props.apiBase}/terminal/ws?session_id=${props.sessionId || props.resource_id}&cols=${xterm.value.cols}&rows=${xterm.value.rows}`
-  )
+  console.log("=== DEBUG SSH WS CONNECT ===", {
+    currentSessionId,
+    resource_id: props.resource_id,
+    sessionIdProp: props.sessionId
+  })
+  const params = new URLSearchParams({
+    session_id: currentSessionId,
+    resource_id: props.resource_id,
+    cols: String(xterm.value.cols),
+    rows: String(xterm.value.rows),
+    debug_tag: "v1.0.2"
+  })
+  socket.value = new WebSocket(`${props.prefix.wsServer}${props.apiBase}/terminal/ws?${params.toString()}`)
 
   socketOnClose()
   socketOnOpen()
@@ -134,7 +150,14 @@ const socketOnError = () => {
 
 const socketOnMessage = () => {
   socket.value!.onmessage = (msg: MessageEvent) => {
-    const content = JSON.parse(msg.data as string) as { operation?: string; data: string }
+    let content: { operation?: string; data: string }
+    try {
+      content = JSON.parse(msg.data as string) as { operation?: string; data: string }
+    } catch {
+      xterm.value?.write(String(msg.data))
+      return
+    }
+
     if (content.operation === "pong") {
       return
     }

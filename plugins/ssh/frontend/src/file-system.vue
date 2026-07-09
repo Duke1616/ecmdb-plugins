@@ -125,11 +125,11 @@ const vuefinderRef = ref<VueFinderInstance | null>(null)
 // 配置常量
 const prefixConfig = computed(() => props.prefix || getPrefixConfig())
 const BASE_URL = computed(() => `${prefixConfig.value.prefix}${props.apiBase}/sftp`)
-const FINDER_ID = computed(() => Number(props.sessionId || props.resource_id) || 20)
-const uploadWsURL = computed(() => `${prefixConfig.value.wsServer}${props.apiBase}/sftp/upload/ws?id=${FINDER_ID.value}`)
+const FINDER_ID = computed(() => props.sessionId || "")
+const uploadWsURL = computed(() => `${prefixConfig.value.wsServer}${props.apiBase}/sftp/upload/ws?id=${encodeURIComponent(FINDER_ID.value)}`)
 const requestHeaders = computed(() =>
   getRuntimeRequestHeaders({
-    "X-Finder-ID": String(FINDER_ID.value)
+    "X-Finder-ID": FINDER_ID.value
   })
 )
 const UI_UPDATE_MS = 1000 // 1s 同步一次
@@ -228,7 +228,7 @@ class CustomRemoteDriver extends RemoteDriver {
 
   async download(filePath: string): Promise<void> {
     try {
-      const url = `${BASE_URL.value}/download?path=${encodeURIComponent(filePath)}&id=${encodeURIComponent(String(FINDER_ID.value))}`
+      const url = `${BASE_URL.value}/download?path=${encodeURIComponent(filePath)}&id=${encodeURIComponent(FINDER_ID.value)}`
       const link = document.createElement("a")
       link.href = url
       link.rel = "noopener noreferrer"

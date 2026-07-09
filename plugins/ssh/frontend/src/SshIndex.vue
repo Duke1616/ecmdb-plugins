@@ -125,7 +125,7 @@ interface ConnectionOption {
 interface ConnectResult {
   msg?: string
   data?: {
-    session_id?: number | string
+    session_id?: string
   }
 }
 
@@ -133,9 +133,16 @@ interface ConnectResult {
 const hasResource = computed(() => Boolean(props.resourceId))
 const sessionVersion = ref(0)
 const showTerminalView = computed(
-  () => hasResource.value && isConnected.value && Boolean(selectedOption.value) && Boolean(prefix.value?.wsServer)
+  () =>
+    hasResource.value &&
+    isConnected.value &&
+    Boolean(selectedOption.value) &&
+    Boolean(sessionId.value) &&
+    Boolean(prefix.value?.wsServer)
 )
-const terminalViewKey = computed(() => `${sessionVersion.value}:${selectedOption.value}:${props.resourceId || "empty"}`)
+const terminalViewKey = computed(
+  () => `${sessionVersion.value}:${selectedOption.value}:${props.resourceId || "empty"}:${sessionId.value || "pending"}`
+)
 const finderViewKey = computed(() => `finder:${terminalViewKey.value}`)
 const xtermViewKey = computed(() => `xterm:${terminalViewKey.value}`)
 const guacdViewKey = computed(() => `guacd:${terminalViewKey.value}`)
@@ -201,6 +208,10 @@ const preselectConnectionOption = () => {
   selectedOption.value = getPreferredOption()?.value || ""
 }
 
+const resolveSessionId = (result: ConnectResult) => {
+  return (result?.data?.session_id || "").trim()
+}
+
 // 方法
 const selectOption = (option: ConnectionOption) => {
   if (option.disabled) {
@@ -254,7 +265,7 @@ const connect = async () => {
     }
 
     const result = (await response.json()) as ConnectResult
-    const nextSessionId = String(result?.data?.session_id || "").trim()
+    const nextSessionId = resolveSessionId(result)
     if (!nextSessionId) {
       throw new Error("建立连接失败: 缺少会话ID")
     }

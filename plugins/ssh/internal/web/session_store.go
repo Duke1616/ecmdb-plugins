@@ -1,38 +1,90 @@
 package web
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/Duke1616/ecmdb/pkg/term"
 )
 
+type runtimeSession struct {
+	token    string
+	finderID int64
+	session  term.Session
+}
+
 type runtimeSessionStore struct {
-	pool *term.SessionPool
-	seq  atomic.Int64
+	mu       sync.RWMutex
+	sessions map[string]runtimeSession
+	seq      atomic.Int64
 }
 
 func newRuntimeSessionStore() *runtimeSessionStore {
-	store := &runtimeSessionStore{
-		pool: term.NewSessionPool(),
+	return &runtimeSessionStore{
+		sessions: make(map[string]runtimeSession),
 	}
-	store.seq.Store(time.Now().UnixNano())
-	return store
 }
 
-func (s *runtimeSessionStore) Put(session term.Session) int64 {
-	sessionID := s.seq.Add(1)
-	s.pool.SetSession(sessionID, session)
-	return sessionID
-}
+func (s *runtimeSessionStore) Put(session term.Session) (runtimeSession, error) {
+	for i := 0; i < 3; i++ {
+		token, err := newSessionToken()
+		if err != nil {
+			return runtimeSession{}, err
+		}
 
-func (s *runtimeSessionStore) Get(sessionID int64) (term.Session, error) {
-	return s.pool.GetSession(sessionID)
-}
+		s.mu.Lock()
+		if _, exists := s.sessions[token]; exists {
+			s.mu.Unlock()
+			continue
+		}
 
-func (s *runtimeSessionStore) Close(sessionID int64) {
-	if session, err := s.pool.GetSession(sessionID); err == nil && session != nil {
-		_ = session.Close()
+		runtime := runtimeSession{
+			token:    token,
+			finderID: s.seq.Add(1),
+			session:  session,
+		}
+		s.sessions[token] = runtime
+		s.mu.Unlock()
+		return runtime, nil
 	}
-	s.pool.DeleteSession(sessionID)
+
+	return runtimeSession{}, fmt.Errorf("failed to allocate session token")
+}
+
+func (s *runtimeSessionStore) Get(token string) (runtimeSession, error) {
+	if token == "" {
+		return runtimeSession{}, fmt.Errorf("session token is required")
+	}
+
+	s.mu.RLock()
+	runtime, ok := s.sessions[token]
+	s.mu.RUnlock()
+	if !ok {
+		return runtimeSession{}, fmt.Errorf("session %s not found", token)
+	}
+	return runtime, nil
+}
+
+func (s *runtimeSessionStore) Close(token string) {
+	s.mu.Lock()
+	runtime, ok := s.sessions[token]
+	if ok {
+		delete(s.sessions, token)
+	}
+	s.mu.Unlock()
+
+	if ok && runtime.session != nil {
+		_ = runtime.session.Close()
+	}
+}
+
+func newSessionToken() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return "ssh_" + hex.EncodeToString(raw[:]), nil
 }

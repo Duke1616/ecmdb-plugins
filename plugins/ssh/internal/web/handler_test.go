@@ -102,11 +102,20 @@ func TestStoreSessionKeepsConcurrentSessions(t *testing.T) {
 	first := &stubSession{}
 	second := &stubSession{}
 
-	firstID := h.sessions.Put(first)
-	secondID := h.sessions.Put(second)
+	firstSess, err := h.sessions.Put(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondSess, err := h.sessions.Put(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstID := firstSess.token
+	secondID := secondSess.token
 
 	if firstID == secondID {
-		t.Fatalf("session ids should be unique, got %d", firstID)
+		t.Fatalf("session ids should be unique, got %s", firstID)
 	}
 	if first.closed != 0 {
 		t.Fatalf("first session should not be closed, close count = %d", first.closed)
@@ -116,7 +125,7 @@ func TestStoreSessionKeepsConcurrentSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession() error = %v", err)
 	}
-	if storedFirst != first {
+	if storedFirst.session != first {
 		t.Fatal("first session was not stored")
 	}
 
@@ -124,7 +133,7 @@ func TestStoreSessionKeepsConcurrentSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession() error = %v", err)
 	}
-	if storedSecond != second {
+	if storedSecond.session != second {
 		t.Fatal("second session was not stored")
 	}
 }
@@ -134,52 +143,55 @@ func TestCloseSessionCleansRuntimeState(t *testing.T) {
 
 	h := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
 	session := &stubSession{}
-	sessionID := h.sessions.Put(session)
-	h.finder.markReady(sessionID)
+	sessInfo, err := h.sessions.Put(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.finder.markReady(sessInfo.finderID)
 
-	h.closeSession(sessionID)
+	h.closeSession(sessInfo.token)
 
 	if session.closed != 1 {
 		t.Fatalf("session close count = %d, want 1", session.closed)
 	}
-	if h.finder.isReady(sessionID) {
+	if h.finder.isReady(sessInfo.finderID) {
 		t.Fatal("finder state should be cleared")
 	}
-	if _, err := h.sessions.Get(sessionID); err == nil {
+	if _, err := h.sessions.Get(sessInfo.token); err == nil {
 		t.Fatal("session should be deleted")
 	}
 }
 
-func TestParseFinderSessionID(t *testing.T) {
+func TestParseFinderSessionToken(t *testing.T) {
 	t.Parallel()
 
 	t.Run("header first", func(t *testing.T) {
 		t.Parallel()
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		req := httptest.NewRequest(http.MethodGet, "/sftp/files?id=2", nil)
-		req.Header.Set("x-finder-id", "9")
+		req := httptest.NewRequest(http.MethodGet, "/sftp/files?id=ssh_two", nil)
+		req.Header.Set("x-finder-id", "ssh_nine")
 		ctx.Request = req
 
-		id, err := parseFinderSessionID(ctx)
+		token, err := parseFinderSessionToken(ctx)
 		if err != nil {
-			t.Fatalf("parseFinderSessionID() error = %v", err)
+			t.Fatalf("parseFinderSessionToken() error = %v", err)
 		}
-		if id != 9 {
-			t.Fatalf("id = %d, want 9", id)
+		if token != "ssh_nine" {
+			t.Fatalf("token = %s, want ssh_nine", token)
 		}
 	})
 
 	t.Run("query fallback", func(t *testing.T) {
 		t.Parallel()
 		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-		ctx.Request = httptest.NewRequest(http.MethodGet, "/sftp/files?id=22", nil)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/sftp/files?id=ssh_twentytwo", nil)
 
-		id, err := parseFinderSessionID(ctx)
+		token, err := parseFinderSessionToken(ctx)
 		if err != nil {
-			t.Fatalf("parseFinderSessionID() error = %v", err)
+			t.Fatalf("parseFinderSessionToken() error = %v", err)
 		}
-		if id != 22 {
-			t.Fatalf("id = %d, want 22", id)
+		if token != "ssh_twentytwo" {
+			t.Fatalf("token = %s, want ssh_twentytwo", token)
 		}
 	})
 }

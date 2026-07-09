@@ -21,7 +21,7 @@ type ConnectReq struct {
 }
 
 type ConnectResp struct {
-	SessionID int64 `json:"session_id"`
+	SessionID string `json:"session_id"`
 }
 
 type connectSpec struct {
