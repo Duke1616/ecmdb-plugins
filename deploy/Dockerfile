@@ -1,5 +1,5 @@
 # 阶段 1：前端 UMD 构建
-FROM node:22.18.0-bookworm as frontend-build
+FROM node:22.18.0-bookworm AS frontend-build
 ARG PLUGIN_NAME
 WORKDIR /app
 COPY . .
@@ -15,8 +15,8 @@ RUN if [ -d "plugins/${PLUGIN_NAME}/frontend" ]; then \
     fi
 
 # 阶段 2：Go 核心编译
-FROM golang:1.25.0-alpine as build
-MAINTAINER luankz
+FROM golang:1.25.0-alpine AS build
+LABEL org.opencontainers.image.authors="luankz"
 ARG PLUGIN_NAME
 ARG VERSION=unknown
 WORKDIR /app
@@ -25,7 +25,7 @@ RUN go mod download
 RUN go build -ldflags="-X main.version=${VERSION} -w -s" -a -o dist/ecmdb-plugin plugins/${PLUGIN_NAME}/cmd/main.go
 
 # 阶段 3：最终发布与运行
-FROM alpine:latest as deploy
+FROM alpine:latest AS deploy
 ARG PLUGIN_NAME
 ENV EGO_DEBUG=true
 WORKDIR /app

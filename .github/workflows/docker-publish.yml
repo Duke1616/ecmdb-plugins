@@ -87,6 +87,9 @@ jobs:
           context: .
           file: ./deploy/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
+          # Aliyun ACR does not accept BuildKit's OCI provenance attestation
+          # manifest (application/vnd.oci.empty.v1+json).
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # 启用 GHA 编译缓存，并以插件为 scope 进行缓存隔离
