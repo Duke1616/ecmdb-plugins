@@ -3,11 +3,12 @@ module github.com/Duke1616/ecmdb-plugins
 go 1.25.0
 
 require (
-	github.com/Duke1616/ecmdb v1.11.1-0.20260709023155-ae0e3ce8c5f4
-	github.com/Duke1616/eiam v0.0.20
-	github.com/Duke1616/etask v0.0.7
+	github.com/Duke1616/ecmdb v1.11.1
+	github.com/Duke1616/eiam v0.0.22
+	github.com/Duke1616/etask v1.14.1
 	github.com/Duke1616/vuefinder-go v1.1.0
 	github.com/ecodeclub/ekit v0.0.10
+	github.com/ecodeclub/ginx v0.0.3-0.20250724125208-2ec06fc61450
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/wire v0.7.0
@@ -41,7 +42,6 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/ecodeclub/ginx v0.0.3-0.20250724125208-2ec06fc61450 // indirect
 	github.com/fasthttp/websocket v1.5.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/gin-contrib/cors v1.7.7 // indirect
@@ -125,3 +125,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ecodeclub/ginx => github.com/ecodeclub/ginx v0.0.2-0.20250919074712-66377c661570
+
+replace github.com/Duke1616/ecmdb => /Users/luankz/go-code/ecmdb

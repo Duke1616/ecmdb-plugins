@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	pluginv1 "github.com/Duke1616/ecmdb-plugins/api/proto/gen/ecmdb/plugin/v1"
-	"github.com/Duke1616/ecmdb/pkg/plugin"
+	plugin "github.com/Duke1616/ecmdb/pkg/plugin/types"
 )
 
 type Resolver struct {

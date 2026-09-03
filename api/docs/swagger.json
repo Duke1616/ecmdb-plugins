@@ -1,0 +1,287 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ECMDB Plugins API Documentation",
+    "description": "基于 AST 与反射契约混合自适应生成的 OpenAPI 3.0 规范，支持导入 Apifox / Postman 进行全量接口联调。",
+    "version": "1.0.0"
+  },
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/sftp/archive": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "压缩文件",
+        "description": "权限标识: sftp_archive",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/delete": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "删除文件",
+        "description": "权限标识: sftp_delete",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/download": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "下载文件",
+        "description": "权限标识: sftp_download",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/files": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "查看文件",
+        "description": "权限标识: sftp_files",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/move": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "移动文件",
+        "description": "权限标识: sftp_move",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/new_file": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "创建文件",
+        "description": "权限标识: sftp_new_file",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/new_folder": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "创建目录",
+        "description": "权限标识: sftp_new_folder",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/preview": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "预览文件",
+        "description": "权限标识: sftp_preview",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/rename": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "重命名文件",
+        "description": "权限标识: sftp_rename",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/save": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "保存文件内容",
+        "description": "权限标识: sftp_save",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/search": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "搜索文件",
+        "description": "权限标识: sftp_search",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/unarchive": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "解压文件",
+        "description": "权限标识: sftp_unarchive",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/upload": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "上传文件",
+        "description": "权限标识: sftp_upload",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/sftp/upload/ws": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "上传文件",
+        "description": "权限标识: sftp_upload_ws",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/terminal/connect": {
+      "post": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "终端连接",
+        "description": "权限标识: connect",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectReq"
+              },
+              "example": {
+                "resource_id": 1,
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    },
+    "/terminal/ws": {
+      "get": {
+        "tags": [
+          "插件中心/SSH 插件"
+        ],
+        "summary": "终端会话",
+        "description": "权限标识: ssh_session",
+        "responses": {
+          "200": {
+            "description": "请求成功"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "插件中心/SSH 插件"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ConnectReq": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "type": {
+            "type": "string",
+            "example": "string"
+          }
+        },
+        "example": {
+          "resource_id": 1,
+          "type": "string"
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "请输入登录后获取的 JWT Bearer Token 进行接口调用鉴权"
+      }
+    }
+  }
+}

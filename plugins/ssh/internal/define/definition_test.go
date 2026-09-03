@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
-	"github.com/Duke1616/ecmdb/pkg/plugin"
+	"github.com/Duke1616/ecmdb/pkg/plugin/types"
 )
 
 func TestDefinition(t *testing.T) {
@@ -51,7 +51,7 @@ func TestDefinition(t *testing.T) {
 	if !ok {
 		t.Fatal("runtime not found")
 	}
-	if runtime.Mode != plugin.RuntimeModeExternalService || runtime.Upstream != "http://ssh-plugin:8080" {
+	if runtime.Mode != types.RuntimeModeExternalService || runtime.Upstream != "http://ssh-plugin:8080" {
 		t.Fatalf("runtime = %#v", runtime)
 	}
 	if len(def.Schema.Models) != 2 {

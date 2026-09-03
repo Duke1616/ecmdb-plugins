@@ -5,6 +5,8 @@ import (
 
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
+	"github.com/Duke1616/ecmdb/pkg/plugin/codec"
+	"github.com/Duke1616/ecmdb/pkg/plugin/types"
 	"github.com/Duke1616/ecmdb/pkg/term"
 )
 
@@ -41,7 +43,10 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			"SSH 终端",
 			plugin.Icon("terminal"),
 			plugin.Permission(PermissionConnect),
-			plugin.ActionRuntime(workspaceRuntime("Web Shell", "host", true)),
+			plugin.Workspace("Web Shell", "host",
+				plugin.CardFields("name", "ip"),
+				plugin.Prop("connectionType", "Web Shell"),
+			),
 			plugin.UseBinding(hostBindingUID),
 		).
 		Action(
@@ -49,16 +54,14 @@ func (p Provider) Definition() (plugin.Definition, error) {
 			"文件管理",
 			plugin.Icon("folder"),
 			plugin.Permission(PermissionConnect),
-			plugin.ActionRuntime(workspaceRuntime("Web Sftp", "host", true)),
+			plugin.Workspace("Web Sftp", "host",
+				plugin.CardFields("name", "ip"),
+				plugin.Prop("connectionType", "Web Sftp"),
+			),
 			plugin.UseBinding(hostBindingUID),
 		).
 		Setup(
-			plugin.ModelGroup("主机模型"),
-			plugin.ModelGroup("网关模型"),
-			plugin.RelationTypes(plugin.BasicRelationTypes()...),
-			hostModel(),
-			gatewayModel(),
-			plugin.Relation("AuthGateway", plugin.RelationTypeDefault, "host").ManyToMany(),
+			plugin.Derive[ConnectionTarget]("host"),
 		).
 		Bind(plugin.CenterNamed[ConnectionTarget](inputEndpoint, "host")).
 		Definition()
@@ -89,19 +92,19 @@ type ConnectionTarget struct {
 	Gateways []Gateway `plugin:"gateways,model=AuthGateway,in=default"`
 }
 
-func DecodeTarget(actionCtx plugin.ActionContext) (ConnectionTarget, error) {
-	return plugin.InputRootOne[ConnectionTarget](actionCtx)
+func DecodeTarget(actionCtx types.ActionContext) (ConnectionTarget, error) {
+	return codec.InputRootOne[ConnectionTarget](actionCtx)
 }
 
-func ResolveRequest(action string, resourceID int64) plugin.ResolveRequest {
-	return plugin.ResolveRequest{
+func ResolveRequest(action string, resourceID int64) types.ResolveRequest {
+	return types.ResolveRequest{
 		PluginID:   PluginUID,
 		Action:     action,
 		ResourceID: resourceID,
 	}
 }
 
-func ResolveGatewayChain(actionCtx plugin.ActionContext) (term.GatewayChain, error) {
+func ResolveGatewayChain(actionCtx types.ActionContext) (term.GatewayChain, error) {
 	target, err := DecodeTarget(actionCtx)
 	if err != nil {
 		return nil, err
@@ -148,76 +151,4 @@ func toEndpoint(host string, port int, username, password, privateKey, authType 
 		Passphrase: password,
 		Sort:       sort,
 	}
-}
-
-func hostModel() plugin.ModelSpec {
-	return plugin.Model(
-		"host",
-		"主机",
-		plugin.ModelIcon("monitor-host"),
-		plugin.ModelGroupName("主机模型"),
-	).
-		AttrGroup("基础属性", 0,
-			plugin.String("name", "名称").Required().Display().Index(0),
-			plugin.String("ip", "IP地址").Required().Display().Index(1),
-			plugin.String("port", "端口").Display().Index(2),
-			plugin.String("username", "用户名").Display().Index(3),
-			plugin.List("auth_type", "认证类型", authOptions()).Required().Display().Index(6),
-		).
-		AttrGroup("加密属性", 2,
-			plugin.String("password", "密码").Secure().Index(1),
-			plugin.Multiline("private_key", "私钥").Secure().Index(2),
-		).
-		Build()
-}
-
-func gatewayModel() plugin.ModelSpec {
-	return plugin.Model(
-		"AuthGateway",
-		"登陆网关",
-		plugin.ModelIcon("ops-oneterm-login"),
-		plugin.ModelGroupName("网关模型"),
-	).
-		AttrGroup("基础属性", 0,
-			plugin.String("name", "名称").Required().Display().Index(0),
-			plugin.String("host", "地址").Required().Display().Index(1),
-			plugin.String("port", "端口").Display().Index(2),
-			plugin.String("username", "用户名").Display().Index(3),
-		).
-		AttrGroup("分类属性", 1,
-			plugin.List("auth_type", "认证类型", authOptions()).Display().Index(1),
-			plugin.String("sort", "排序").Display().Index(2),
-		).
-		AttrGroup("加密属性", 2,
-			plugin.String("password", "密码").Secure().Index(1),
-			plugin.Multiline("private_key", "私钥").Secure().Index(2),
-		).
-		Build()
-}
-
-func authOptions() []string {
-	return []string{"passwd", "publickey", "passphrase"}
-}
-
-func workspaceRuntime(connectionType string, modelUID string, sidebarEnabled bool) plugin.ActionRuntimeSpec {
-	var sidebar *plugin.RuntimeSidebarSpec
-	if sidebarEnabled {
-		sidebar = &plugin.RuntimeSidebarSpec{
-			Enabled: &sidebarEnabled,
-			Resource: &plugin.RuntimeSidebarResourceSpec{
-				ModelUID: modelUID,
-			},
-		}
-	}
-	return plugin.ActionRuntimeSpec{
-		Layout: "workspace",
-		Props: map[string]any{
-			"connectionType": connectionType,
-		},
-		Sidebar: sidebar,
-	}
-}
-
-func boolPtr(value bool) *bool {
-	return &value
 }

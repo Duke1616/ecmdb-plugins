@@ -59,7 +59,7 @@ func InitWebServer(
 	listener net.Listener,
 	resolver *common_grpc.Resolver,
 ) *bootstrap.PluginApp {
-	return bootstrap.NewPluginApp(bootstrap.BootstrapOptions{
+	return bootstrap.NewPluginApp(bootstrap.Options{
 		Plugin:              sshHdl,
 		Resolver:            resolver,
 		Upstream:            cfg.Upstream,

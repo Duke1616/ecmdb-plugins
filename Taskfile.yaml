@@ -1,4 +1,9 @@
 version: '3'
+
+env:
+  EGO_DEBUG: "true"
+  PATH: "{{.HOME}}/go/bin:/usr/local/go/bin:/opt/homebrew/bin:{{.PATH}}"
+
 tasks:
   default:
     desc: 命令提示
@@ -13,16 +18,51 @@ tasks:
   run:ssh:
     desc: 启动 SSH 插件服务
     cmds:
-      - EGO_DEBUG=true go run plugins/ssh/cmd/main.go server
+      - go run plugins/ssh/cmd/main.go server
 
+  # --- 代码与契约生成 ---
   gen:
-    desc: 代码生成
+    desc: 全量代码生成 (Wire + Proto + Perm + Swagger)
+    cmds:
+      - task: wire
+      - task: proto
+      - task: perm
+      - task: swagger
+
+  wire:
+    desc: 依赖注入代码生成
+    cmds:
+      - wire ./plugins/ssh/ioc/
+
+  proto:
+    desc: 生成 Protobuf / gRPC 桩代码
     cmds:
       - buf generate api/proto
+
+  perm:
+    desc: 运行 AST 权限扫描与强类型契约/文档生成
+    cmds:
+      - permgen -s ./plugins -g ./pkg/contract/permission/zz_generated_perms.go -m ./pkg/contract/model/zz_generated_models.go -d ./docs/permissions.md
+
+  swagger:
+    desc: 生成 OpenAPI 3.0 / Swagger 接口文档与交互页面
+    cmds:
+      - swaggergen -s ./plugins -o ./api/docs/swagger.json --html ./api/docs/index.html -t "ECMDB Plugins API Documentation"
+
+  test:
+    desc: 运行全仓单元测试
+    cmds:
+      - go test ./...
 
   mock:
     desc: 生成 Mock 代码
     cmds:
       - go generate ./...
 
-
+  # --- 工具链安装 ---
+  install:tools:
+    desc: 安装生态通用工具链 (wire, permgen, swaggergen, buf)
+    cmds:
+      - go install github.com/google/wire/cmd/wire@latest
+      - go install github.com/Duke1616/eiam/cmd/permgen@latest
+      - go install github.com/Duke1616/eiam/cmd/swaggergen@latest

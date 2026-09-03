@@ -9,6 +9,7 @@ import (
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
+	"github.com/Duke1616/ecmdb/pkg/plugin/types"
 	"github.com/Duke1616/ecmdb/pkg/term"
 	"github.com/gin-gonic/gin"
 )
@@ -17,9 +18,9 @@ func TestWellKnown(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	handler := NewHandler(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"})
-	engine.GET(plugin.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(handler)))
+	engine.GET(types.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(handler)))
 
-	req := httptest.NewRequest(http.MethodGet, plugin.WellKnownPath, nil)
+	req := httptest.NewRequest(http.MethodGet, types.WellKnownPath, nil)
 	rec := httptest.NewRecorder()
 
 	engine.ServeHTTP(rec, req)

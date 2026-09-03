@@ -8,22 +8,27 @@ import (
 	"strconv"
 	"time"
 
+	vuefinderginx "github.com/Duke1616/vuefinder-go/pkg/ginx"
+	vuefinderweb "github.com/Duke1616/vuefinder-go/pkg/web"
+
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
+	"github.com/Duke1616/ecmdb-plugins/pkg/contract/permission"
 	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	_ "github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/ssh"
-	"github.com/Duke1616/ecmdb/pkg/ginx"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
+	"github.com/Duke1616/ecmdb/pkg/plugin/types"
 	"github.com/Duke1616/ecmdb/pkg/term"
 	"github.com/Duke1616/ecmdb/pkg/term/sshx"
 	"github.com/Duke1616/eiam/pkg/web/capability"
+	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 type missingResolver struct{}
 
-func (missingResolver) ResolveActionContext(context.Context, plugin.ResolveRequest) (plugin.ActionContext, error) {
-	return plugin.ActionContext{}, fmt.Errorf("ecmdb context resolver is not configured")
+func (missingResolver) ResolveActionContext(context.Context, types.ResolveRequest) (types.ActionContext, error) {
+	return types.ActionContext{}, fmt.Errorf("ecmdb context resolver is not configured")
 }
 
 type Handler struct {
@@ -52,7 +57,7 @@ func NewHandler(cfg bootstrap.PluginConfig) *Handler {
 		sessions:  newRuntimeSessionStore(),
 		timeout:   timeout,
 		finder:    newFinderRuntime(),
-		IRegistry: bootstrap.NewRegistry("ssh", "资产仓库/SSH 插件"),
+		IRegistry: capability.NewRegistry("cmdb", "ssh", "插件中心/SSH 插件"),
 	}
 }
 
@@ -78,21 +83,104 @@ func (h *Handler) Definition() (plugin.Definition, error) {
 }
 
 func (h *Handler) RegisterPrivateRoutes(router *gin.RouterGroup) {
+	// ==========================================
+	// 1. Web 终端会话路由
+	// ==========================================
 	terminal := router.Group("/terminal")
-	terminal.POST("/connect", h.Capability("终端连接", "connect").
-		Needs("cmdb:ssh:ssh_session", "cmdb:ssh:sftp_files").
-		Handle(ginx.WrapBody(h.Connect)),
-	)
-	terminal.GET("/ws", h.Capability("终端会话", "ssh_session").
-		NoSync().
-		Handle(ginx.Ws(h.SshSessionTunnel)),
+
+	// 终端连接
+	terminal.POST("/connect", h.Define("终端连接", "connect").
+		Needs(permission.Ssh.SshSession, permission.Ssh.SftpFiles).
+		Bind(ginx.B[ConnectReq](h.Connect)),
 	)
 
-	sftpGroup := router.Group("/sftp")
-	registerSFTPRoutes(sftpGroup, h)
+	// 终端长连接会话通道
+	terminal.GET("/ws", h.Define("终端会话", "ssh_session").
+		NoSync().
+		Bind(h.SshSessionTunnel),
+	)
+
+	// ==========================================
+	// 2. SFTP 文件管理路由 (全局由 withFinder 守卫)
+	// ==========================================
+	sftp := router.Group("/sftp")
+	sftp.Use(h.withFinder)
+
+	// 查看文件列表
+	sftp.GET("/files", h.Define("查看文件", "sftp_files").
+		NoSync().
+		Bind(vuefinderginx.Wrap(h.finder.Index)),
+	)
+
+	// 下载文件
+	sftp.GET("/download", h.Define("下载文件", "sftp_download").
+		Bind(h.finder.DownloadStream),
+	)
+
+	// 搜索文件
+	sftp.GET("/search", h.Define("搜索文件", "sftp_search").
+		Bind(vuefinderginx.Wrap(h.finder.Search)),
+	)
+
+	// 预览文件
+	sftp.GET("/preview", h.Define("预览文件", "sftp_preview").
+		Bind(vuefinderginx.WrapBuff(h.finder.Preview)),
+	)
+
+	// 创建目录
+	sftp.POST("/new_folder", h.Define("创建目录", "sftp_new_folder").
+		Bind(vuefinderginx.WrapBody(h.finder.NewFolder)),
+	)
+
+	// 创建文件
+	sftp.POST("/new_file", h.Define("创建文件", "sftp_new_file").
+		Bind(vuefinderginx.WrapBody(h.finder.NewFile)),
+	)
+
+	// 重命名文件
+	sftp.POST("/rename", h.Define("重命名文件", "sftp_rename").
+		Bind(vuefinderginx.WrapBody(h.finder.Rename)),
+	)
+
+	// 移动文件
+	sftp.POST("/move", h.Define("移动文件", "sftp_move").
+		Bind(vuefinderginx.WrapBody(h.finder.Move)),
+	)
+
+	// 压缩文件
+	sftp.POST("/archive", h.Define("压缩文件", "sftp_archive").
+		Bind(vuefinderginx.WrapBody(h.finder.Archive)),
+	)
+
+	// 解压文件
+	sftp.POST("/unarchive", h.Define("解压文件", "sftp_unarchive").
+		Bind(vuefinderginx.WrapBody(h.finder.Unarchive)),
+	)
+
+	// 保存文件内容
+	sftp.POST("/save", h.Define("保存文件内容", "sftp_save").
+		Bind(vuefinderginx.WrapBuffBody(h.finder.Save)),
+	)
+
+	// 删除文件
+	sftp.POST("/delete", h.Define("删除文件", "sftp_delete").
+		Bind(vuefinderginx.WrapBody(h.finder.Delete)),
+	)
+
+	// 上传文件
+	sftp.POST("/upload", h.Define("上传文件", "sftp_upload").
+		Bind(vuefinderginx.WrapUpload(h.finder.Upload)),
+	)
+
+	// WebSocket 上传通道
+	sftp.GET("/upload/ws", h.Define("上传文件", "sftp_upload_ws").
+		Bind(func(ctx *gin.Context) {
+			vuefinderweb.UploadHandler(h.finder.Handler)(ctx.Writer, ctx.Request)
+		}),
+	)
 }
 
-func (h *Handler) Connect(ctx *gin.Context, req ConnectReq) (ginx.Result, error) {
+func (h *Handler) Connect(ctx *ginx.Context, req ConnectReq) (ginx.Result, error) {
 	spec, err := req.Type.spec()
 	if err != nil {
 		return ginx.Result{Msg: err.Error()}, err
@@ -153,23 +241,28 @@ func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action s
 	return sess, nil
 }
 
-func (h *Handler) SshSessionTunnel(ctx *gin.Context) error {
+func (h *Handler) SshSessionTunnel(ctx *gin.Context) {
 	token, err := parseSessionTokenQuery(ctx)
 	if err != nil {
-		return err
+		_ = ctx.Error(err)
+		return
 	}
 
 	colsInt, err := parseRequiredIntQuery(ctx, "cols")
 	if err != nil {
-		return err
+		_ = ctx.Error(err)
+		return
 	}
 
 	rowsInt, err := parseRequiredIntQuery(ctx, "rows")
 	if err != nil {
-		return err
+		_ = ctx.Error(err)
+		return
 	}
 
-	return h.wsSSHSession(ctx, token, colsInt, rowsInt)
+	if err = h.wsSSHSession(ctx, token, colsInt, rowsInt); err != nil {
+		_ = ctx.Error(err)
+	}
 }
 
 const (
@@ -221,7 +314,7 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) e
 			case <-pingDone:
 				return
 			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				if err = conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
 					return
 				}
 			}

@@ -9,7 +9,10 @@ import (
 
 	common_grpc "github.com/Duke1616/ecmdb-plugins/pkg/grpc"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
+	"github.com/Duke1616/ecmdb/pkg/plugin/types"
 	"github.com/Duke1616/eiam/pkg/web/capability"
+	"github.com/Duke1616/eiam/pkg/web/capability/syncer"
+	httpreporter "github.com/Duke1616/eiam/pkg/web/capability/syncer/http"
 	"github.com/Duke1616/eiam/pkg/web/middleware"
 	"github.com/Duke1616/eiam/pkg/web/sdk"
 	"github.com/ecodeclub/ekit/retry"
@@ -26,7 +29,7 @@ type IPlugin interface {
 	RegisterPrivateRoutes(router *gin.RouterGroup) // 挂载业务私有路由
 }
 
-type BootstrapOptions struct {
+type Options struct {
 	Plugin              IPlugin
 	Resolver            *common_grpc.Resolver
 	Upstream            string // 插件对外注册的反代物理地址，如 http://127.0.0.1:18080
@@ -44,7 +47,7 @@ type PluginApp struct {
 }
 
 // NewPluginApp 一键实例化并自动装配插件 Web 容器及依赖
-func NewPluginApp(opt BootstrapOptions) *PluginApp {
+func NewPluginApp(opt Options) *PluginApp {
 	server := egin.DefaultContainer().Build(egin.WithListener(opt.Listener))
 	server.Engine.ContextWithFallback = true
 
@@ -52,7 +55,7 @@ func NewPluginApp(opt BootstrapOptions) *PluginApp {
 	server.Use(middleware.AccessLogger(), middleware.NewCorsBuilder().Build())
 
 	// 2. 自动注册公共声明端点 (自描述与其健康检查)
-	server.Engine.GET(plugin.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(opt.Plugin)))
+	server.Engine.GET(types.WellKnownPath, gin.WrapH(plugin.DefinitionHandler(opt.Plugin)))
 	server.Engine.GET("/healthz", func(ctx *gin.Context) {
 		ctx.PureJSON(http.StatusOK, gin.H{
 			"status":    "ok",
@@ -75,10 +78,10 @@ func NewPluginApp(opt BootstrapOptions) *PluginApp {
 	opt.Plugin.RegisterPrivateRoutes(server.Engine.Group("/"))
 
 	// 6. 异步向 EIAM 动态同步资产策略权限定义
-	syncer := capability.NewSyncer(capability.NewHttpReporter())
+	permSyncer := syncer.New(httpreporter.New())
 	go func() {
 		time.Sleep(time.Second)
-		if err := syncer.WithOption(
+		if err := permSyncer.WithOption(
 			capability.WithSource(opt.Plugin.ID()),
 			capability.WithAPIPathPrefix("/api/plugin-runtime/"+opt.Plugin.ID()),
 			capability.WithPermissions(opt.PermissionProviders...),
@@ -126,4 +129,3 @@ func (a *PluginApp) Register(ctx context.Context) error {
 
 	return nil
 }
-
