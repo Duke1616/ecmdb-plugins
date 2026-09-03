@@ -3,7 +3,7 @@ module github.com/Duke1616/ecmdb-plugins
 go 1.25.0
 
 require (
-	github.com/Duke1616/ecmdb v1.11.1
+	github.com/Duke1616/ecmdb v1.11.2
 	github.com/Duke1616/eiam v0.0.22
 	github.com/Duke1616/etask v1.14.1
 	github.com/Duke1616/vuefinder-go v1.1.0
@@ -127,5 +127,3 @@ require (
 )
 
 replace github.com/ecodeclub/ginx => github.com/ecodeclub/ginx v0.0.2-0.20250919074712-66377c661570
-
-replace github.com/Duke1616/ecmdb => /Users/luankz/go-code/ecmdb

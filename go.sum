@@ -3,8 +3,8 @@ cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I=
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
-github.com/Duke1616/ecmdb v1.11.1 h1:cpZ5I90XyLOMnHLUDrwKrp819BEkXYEYuawcOT2Y8X0=
-github.com/Duke1616/ecmdb v1.11.1/go.mod h1:czxAcfHYCcg3eb4fJtgEM+9yrxw1i/w4hqxWBAQD3G4=
+github.com/Duke1616/ecmdb v1.11.2 h1:IFZEclge98nLdu12RyrTJZ6CrYe5shNyiIFE4hQQ/Ms=
+github.com/Duke1616/ecmdb v1.11.2/go.mod h1:FzJhC09GSnIUGtkwiBr333EbxptX8V1Xr7PKhoZBQgU=
 github.com/Duke1616/eiam v0.0.22 h1:u3B4FLOaRLvribel+BJrgghm1UyUxAut2dcWFGdm1uU=
 github.com/Duke1616/eiam v0.0.22/go.mod h1:fI6GDigg6ohCFlYY3zKEDYNy6HhPzqYkHtfH7rDtbIQ=
 github.com/Duke1616/etask v1.14.1 h1:b5N8vFzjNveOY7Xc2MraeWmO1SCy7qsGOw5uF6aLaF8=
