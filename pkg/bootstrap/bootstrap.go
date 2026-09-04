@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	common_grpc "github.com/Duke1616/ecmdb-plugins/pkg/grpc"
@@ -69,10 +70,12 @@ func NewPluginApp(opt Options) *PluginApp {
 	}
 
 	// 4. 配置 EIAM 权限模块前缀并启用鉴权中间件
+	// NOTE: WebSocket 协议升级请求（如 /terminal/ws 与 /sftp/upload/ws）依赖基于 POST /connect 授权发放的
+	// 临时 Ticket（session_id）并在会话池中自鉴权，且浏览器原生 WebSocket 无法自定义请求头，因此放行握手请求
 	policySDK := sdk.NewSDK()
 	policySDK.WithPathPrefix("/api/plugin-runtime/" + opt.Plugin.ID())
-	server.Use(policySDK.CheckLogin())
-	server.Use(policySDK.CheckPolicy())
+	server.Use(skipWebSocket(policySDK.CheckLogin()))
+	server.Use(skipWebSocket(policySDK.CheckPolicy()))
 
 	// 5. 注册具体的私有业务逻辑路由
 	opt.Plugin.RegisterPrivateRoutes(server.Engine.Group("/"))
@@ -129,3 +132,15 @@ func (a *PluginApp) Register(ctx context.Context) error {
 
 	return nil
 }
+
+// skipWebSocket 包装中间件，若请求为 WebSocket 协议升级则直接放行，交由下游长连接 Session 机制自鉴权
+func skipWebSocket(handler gin.HandlerFunc) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		if strings.EqualFold(ctx.GetHeader("Upgrade"), "websocket") {
+			ctx.Next()
+			return
+		}
+		handler(ctx)
+	}
+}
+
