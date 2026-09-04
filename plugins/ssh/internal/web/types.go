@@ -29,17 +29,23 @@ type connectSpec struct {
 	successMsg string
 }
 
+// 采用注册表模式集中维护连接协议规范，扩展新协议时无需改动业务判断分支
+var connectSpecs = map[ConnectType]connectSpec{
+	ConnectTypeSSH:     {action: define.ActionTerminal, successMsg: "SSH 连接成功"},
+	ConnectTypeWebSftp: {action: define.ActionSFTP, successMsg: "SFTP 连接成功"},
+}
+
+var unsupportedProtocols = map[ConnectType]string{
+	ConnectTypeRDP: "暂不支持 RDP 协议",
+	ConnectTypeVNC: "暂不支持 VNC 协议",
+}
+
 func (c ConnectType) spec() (connectSpec, error) {
-	switch c {
-	case ConnectTypeSSH:
-		return connectSpec{action: define.ActionTerminal, successMsg: "SSH 连接成功"}, nil
-	case ConnectTypeWebSftp:
-		return connectSpec{action: define.ActionSFTP, successMsg: "SFTP 连接成功"}, nil
-	case ConnectTypeRDP:
-		return connectSpec{}, fmt.Errorf("暂不支持 RDP 协议")
-	case ConnectTypeVNC:
-		return connectSpec{}, fmt.Errorf("暂不支持 VNC 协议")
-	default:
-		return connectSpec{}, fmt.Errorf("不支持的连接类型: %s", c)
+	if spec, ok := connectSpecs[c]; ok {
+		return spec, nil
 	}
+	if reason, ok := unsupportedProtocols[c]; ok {
+		return connectSpec{}, fmt.Errorf("%s", reason)
+	}
+	return connectSpec{}, fmt.Errorf("不支持的连接类型: %s", c)
 }

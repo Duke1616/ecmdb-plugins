@@ -309,14 +309,21 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) e
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
 		defer ticker.Stop()
+		failedCount := 0
 		for {
 			select {
 			case <-pingDone:
 				return
 			case <-ticker.C:
 				if err = conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-					return
+					failedCount++
+					// 连续 3 次发送心跳失败才退出，防止单次偶发网络抖动导致保活协程永久终结
+					if failedCount >= 3 {
+						return
+					}
+					continue
 				}
+				failedCount = 0
 			}
 		}
 	}()
@@ -335,27 +342,38 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) e
 				return err1
 			}
 
+			// 关键保活加固。无论客户端发送的是业务心跳还是按键输入，只要有数据到达，
+			// 即证明链路存活，立即顺延读超时，防止因云网关/中间代理丢弃 Pong 帧而误判超时断开。
+			_ = conn.SetReadDeadline(time.Now().Add(wsPongWait))
+
 			msg, err2 := sshx.ParseTerminalMessage(message)
 			if err2 != nil {
 				continue
 			}
 
-			switch msg.Operation {
-			case "resize":
-				if err = terminalSession.Resize(msg.Rows, msg.Cols); err != nil {
-					return err
-				}
-			case "stdin":
-				if err = terminalSession.Write([]byte(msg.Data)); err != nil {
-					return err
-				}
-			case "ping":
-				if err = terminalSession.Ping(); err != nil {
+			if strategy, ok := terminalOpStrategies[msg.Operation]; ok {
+				if err = strategy(terminalSession, msg); err != nil {
 					return err
 				}
 			}
 		}
 	}
+}
+
+// terminalOpStrategy 终端消息操作策略接口
+type terminalOpStrategy func(session term.TerminalSession, msg sshx.TerminalMessage) error
+
+// NOTE: 采用策略模式解耦各终端操作指令的具体执行逻辑，遵循开闭原则
+var terminalOpStrategies = map[string]terminalOpStrategy{
+	"resize": func(s term.TerminalSession, m sshx.TerminalMessage) error {
+		return s.Resize(m.Rows, m.Cols)
+	},
+	"stdin": func(s term.TerminalSession, m sshx.TerminalMessage) error {
+		return s.Write([]byte(m.Data))
+	},
+	"ping": func(s term.TerminalSession, _ sshx.TerminalMessage) error {
+		return s.Ping()
+	},
 }
 
 func writeTerminalError(conn *websocket.Conn, message string) error {

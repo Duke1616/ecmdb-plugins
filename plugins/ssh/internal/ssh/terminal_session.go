@@ -20,6 +20,7 @@ const (
 	terminalFlushInterval = 60 * time.Millisecond
 	websocketPingInterval = 25 * time.Second
 	websocketWriteWait    = 5 * time.Second
+	maxFlushBufferSize    = 32 * 1024
 )
 
 type sshTerminalSession struct {
@@ -31,7 +32,7 @@ type sshTerminalSession struct {
 	tick         *time.Ticker
 	ctx          context.Context
 	cancel       context.CancelFunc
-	dataChan     chan rune
+	dataChan     chan []byte
 	stopOnce     sync.Once
 	writeMu      sync.Mutex
 	buf          bytes.Buffer
@@ -42,6 +43,11 @@ func newSSHTerminalSession(client *golangssh.Client, conn *websocket.Conn, rows,
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			_ = session.Close()
+		}
+	}()
 
 	modes := golangssh.TerminalModes{
 		golangssh.ECHO:          1,
@@ -50,24 +56,22 @@ func newSSHTerminalSession(client *golangssh.Client, conn *websocket.Conn, rows,
 	}
 
 	if err = session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
-		_ = session.Close()
 		return nil, err
 	}
 
-	stdin, err := session.StdinPipe()
+	var stdin io.WriteCloser
+	stdin, err = session.StdinPipe()
 	if err != nil {
-		_ = session.Close()
 		return nil, err
 	}
 
-	stdout, err := session.StdoutPipe()
+	var stdout io.Reader
+	stdout, err = session.StdoutPipe()
 	if err != nil {
-		_ = session.Close()
 		return nil, err
 	}
 
 	if err = session.Shell(); err != nil {
-		_ = session.Close()
 		return nil, err
 	}
 
@@ -81,7 +85,7 @@ func newSSHTerminalSession(client *golangssh.Client, conn *websocket.Conn, rows,
 		tick:         time.NewTicker(terminalFlushInterval),
 		ctx:          ctx,
 		cancel:       cancel,
-		dataChan:     make(chan rune),
+		dataChan:     make(chan []byte, 32),
 	}, nil
 }
 
@@ -92,8 +96,12 @@ func (t *sshTerminalSession) Start() {
 
 func (t *sshTerminalSession) Stop() {
 	t.stopOnce.Do(func() {
-		t.cancel()
-		t.tick.Stop()
+		if t.cancel != nil {
+			t.cancel()
+		}
+		if t.tick != nil {
+			t.tick.Stop()
+		}
 		if t.stdin != nil {
 			_ = t.stdin.Close()
 		}
@@ -145,50 +153,88 @@ func (t *sshTerminalSession) send() {
 				t.Stop()
 				return
 			}
-			if err := t.sendControl(websocket.PingMessage, nil); err != nil {
-				t.Stop()
-				return
-			}
+			// 发送协议层 Ping 帧；单次超时失败不主动关闭连接，由读循环统一处理实际断开
+			_ = t.sendControl(websocket.PingMessage, nil)
 		case <-t.tick.C:
-			msg := t.buf.String()
-			if msg == "" {
-				continue
-			}
-			if err := t.sendMessage("stdout", msg); err != nil {
+			if err := t.flush(); err != nil {
 				t.Stop()
 				return
 			}
-			t.buf.Reset()
 		case data := <-t.dataChan:
-			p := make([]byte, utf8.RuneLen(data))
-			utf8.EncodeRune(p, data)
-			t.buf.Write(p)
+			t.buf.Write(data)
+			// 若瞬时输出量较大（如 cat 大文件或大量滚屏），提前刷盘，避免内存积压与打字延迟
+			if t.buf.Len() >= maxFlushBufferSize {
+				if err := t.flush(); err != nil {
+					t.Stop()
+					return
+				}
+			}
 		}
 	}
 }
 
+// flush 统一抽取单点刷盘逻辑，将缓冲区数据组装为终端消息发送
+func (t *sshTerminalSession) flush() error {
+	if t.buf.Len() == 0 {
+		return nil
+	}
+	msg := t.buf.String()
+	t.buf.Reset()
+	return t.sendMessage("stdout", msg)
+}
+
 func (t *sshTerminalSession) output() {
+	buf := make([]byte, 4096)
+	var leftover []byte
+
 	for {
+		// 将上次未成完整 UTF-8 字符的残余字节（最多 3 字节）保留在头部
+		copy(buf, leftover)
+		n, err := t.stdoutReader.Read(buf[len(leftover):])
+		if err != nil {
+			t.Stop()
+			return
+		}
+		if n == 0 && len(leftover) == 0 {
+			continue
+		}
+
+		var valid []byte
+		valid, leftover = splitCompleteUTF8(buf[:len(leftover)+n])
+		if len(valid) == 0 {
+			continue
+		}
+
+		chunk := make([]byte, len(valid))
+		copy(chunk, valid)
+
 		select {
 		case <-t.ctx.Done():
 			return
-		default:
-			rn, size, err := t.stdoutReader.ReadRune()
-			if err != nil {
-				t.Stop()
-				return
-			}
-			if size == 0 || rn == utf8.RuneError {
-				continue
-			}
-
-			select {
-			case <-t.ctx.Done():
-				return
-			case t.dataChan <- rn:
-			}
+		case t.dataChan <- chunk:
 		}
 	}
+}
+
+// splitCompleteUTF8 从字节流中探测并切分出完整的 UTF-8 数据块与末尾残存字节
+// 严格保证中文字符（3字节）或多字节符号不被 TCP 分片截断造成乱码
+func splitCompleteUTF8(data []byte) (valid []byte, leftover []byte) {
+	total := len(data)
+	if total == 0 {
+		return nil, nil
+	}
+
+	// 从末尾最多回溯 3 字节，定位最后一个多字节字符的起始位置
+	for i := total - 1; i >= 0 && i >= total-3; i-- {
+		if !utf8.RuneStart(data[i]) {
+			continue
+		}
+		if !utf8.FullRune(data[i:]) {
+			return data[:i], data[i:]
+		}
+		break
+	}
+	return data, nil
 }
 
 func (t *sshTerminalSession) sendMessage(operation, data string) error {

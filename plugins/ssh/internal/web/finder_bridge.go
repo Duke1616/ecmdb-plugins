@@ -7,6 +7,7 @@ import (
 
 	vuefinderginx "github.com/Duke1616/vuefinder-go/pkg/ginx"
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 )
 
 func (h *Handler) withFinder(ctx *gin.Context) {
@@ -55,10 +56,11 @@ func (h *Handler) withFinder(ctx *gin.Context) {
 }
 
 func parseFinderSessionToken(ctx *gin.Context) (string, error) {
-	token := strings.TrimSpace(ctx.GetHeader("x-finder-id"))
-	if token == "" {
-		token = strings.TrimSpace(ctx.Query("id"))
-	}
+	// 优先从 Header 提取 x-finder-id，缺失时回退从 URL Query 提取 id
+	token := lo.CoalesceOrEmpty(
+		strings.TrimSpace(ctx.GetHeader("x-finder-id")),
+		strings.TrimSpace(ctx.Query("id")),
+	)
 	if token == "" {
 		return "", fmt.Errorf("session token is required")
 	}

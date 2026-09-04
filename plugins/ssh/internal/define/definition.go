@@ -1,7 +1,9 @@
 package define
 
 import (
-	"sort"
+	"slices"
+
+	"github.com/samber/lo"
 
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
@@ -113,19 +115,19 @@ func ResolveGatewayChain(actionCtx types.ActionContext) (term.GatewayChain, erro
 }
 
 func (t ConnectionTarget) ToGatewayChain() term.GatewayChain {
-	sort.SliceStable(t.Gateways, func(i, j int) bool {
-		return t.Gateways[i].Sort < t.Gateways[j].Sort
+	gateways := append([]Gateway(nil), t.Gateways...)
+	// NOTE: 使用 slices.SortFunc 进行稳定排序，并使用 lo.Map 投影转换为 term.Endpoint 列表
+	slices.SortFunc(gateways, func(a, b Gateway) int {
+		return a.Sort - b.Sort
 	})
 
-	chain := make(term.GatewayChain, 0, len(t.Gateways)+1)
-	for _, gateway := range t.Gateways {
-		chain = append(chain, gateway.ToEndpoint())
-	}
+	chain := lo.Map(gateways, func(g Gateway, _ int) term.Endpoint {
+		return g.ToEndpoint()
+	})
 
 	target := t.Endpoint.ToEndpoint()
 	target.Sort = len(chain) + 1
-	chain = append(chain, target)
-	return chain
+	return append(chain, target)
 }
 
 func (e Endpoint) ToEndpoint() term.Endpoint {
@@ -137,17 +139,13 @@ func (g Gateway) ToEndpoint() term.Endpoint {
 }
 
 func toEndpoint(host string, port int, username, password, privateKey, authType string, sort int) term.Endpoint {
-	if authType == "" {
-		authType = "passwd"
-	}
-
 	return term.Endpoint{
 		Host:       host,
 		Port:       port,
 		Username:   username,
 		Password:   password,
 		PrivateKey: privateKey,
-		AuthType:   authType,
+		AuthType:   lo.CoalesceOrEmpty(authType, "passwd"),
 		Passphrase: password,
 		Sort:       sort,
 	}
