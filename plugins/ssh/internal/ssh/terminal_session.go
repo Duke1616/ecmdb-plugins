@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/Duke1616/ecmdb/pkg/term"
-	"github.com/Duke1616/ecmdb/pkg/term/sshx"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term/sshx"
 	"github.com/gorilla/websocket"
 	golangssh "golang.org/x/crypto/ssh"
 )

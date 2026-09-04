@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Duke1616/ecmdb/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 	"github.com/Duke1616/vuefinder-go/pkg/finder"
 	"github.com/Duke1616/vuefinder-go/pkg/provider"
 	sftpprovider "github.com/Duke1616/vuefinder-go/pkg/provider/sftp"

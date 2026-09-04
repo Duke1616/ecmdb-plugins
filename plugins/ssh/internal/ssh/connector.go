@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Duke1616/ecmdb/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 	"github.com/gorilla/websocket"
 	"github.com/pkg/sftp"
 	golangssh "golang.org/x/crypto/ssh"

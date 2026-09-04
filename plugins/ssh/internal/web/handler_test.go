@@ -10,7 +10,7 @@ import (
 	"github.com/Duke1616/ecmdb-plugins/plugins/ssh/internal/define"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/ecmdb/pkg/plugin/types"
-	"github.com/Duke1616/ecmdb/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 	"github.com/gin-gonic/gin"
 )
 

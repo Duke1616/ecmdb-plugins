@@ -15,8 +15,10 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotomicro/ego v1.2.6
 	github.com/pkg/sftp v1.13.7
+	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
+	github.com/stretchr/testify v1.11.1
 	go.etcd.io/etcd/client/v3 v3.6.11
 	golang.org/x/crypto v0.50.0
 	google.golang.org/grpc v1.79.3
@@ -76,6 +78,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
@@ -84,7 +87,6 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
-	github.com/samber/lo v1.53.0 // indirect
 	github.com/savsgio/gotils v0.0.0-20230208104028-c358bd845dee // indirect
 	github.com/shirou/gopsutil/v3 v3.21.6 // indirect
 	github.com/spf13/afero v1.15.0 // indirect

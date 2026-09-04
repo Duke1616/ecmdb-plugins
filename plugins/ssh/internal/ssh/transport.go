@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Duke1616/ecmdb/pkg/term"
-	"github.com/Duke1616/ecmdb/pkg/term/sshx"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term/sshx"
 	golangssh "golang.org/x/crypto/ssh"
 )
 

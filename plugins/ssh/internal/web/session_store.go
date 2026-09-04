@@ -7,7 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/Duke1616/ecmdb/pkg/term"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 )
 
 type runtimeSession struct {
