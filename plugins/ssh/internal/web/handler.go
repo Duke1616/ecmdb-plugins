@@ -266,8 +266,7 @@ func (h *Handler) SshSessionTunnel(ctx *gin.Context) {
 }
 
 const (
-	wsPingInterval = 30 * time.Second
-	wsPongWait     = 90 * time.Second
+	wsPongWait = 90 * time.Second
 )
 
 func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) error {
@@ -303,31 +302,6 @@ func (h *Handler) wsSSHSession(ctx *gin.Context, token string, cols, rows int) e
 	conn.SetPongHandler(func(string) error {
 		return conn.SetReadDeadline(time.Now().Add(wsPongWait))
 	})
-
-	// 定期发送协议层 Ping 帧，防止 Nginx 代理因无活动超时断开 WebSocket
-	pingDone := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(wsPingInterval)
-		defer ticker.Stop()
-		failedCount := 0
-		for {
-			select {
-			case <-pingDone:
-				return
-			case <-ticker.C:
-				if err = conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-					failedCount++
-					// 连续 3 次发送心跳失败才退出，防止单次偶发网络抖动导致保活协程永久终结
-					if failedCount >= 3 {
-						return
-					}
-					continue
-				}
-				failedCount = 0
-			}
-		}
-	}()
-	defer close(pingDone)
 
 	for {
 		select {

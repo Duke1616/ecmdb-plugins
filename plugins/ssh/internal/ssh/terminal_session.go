@@ -139,6 +139,16 @@ func (t *sshTerminalSession) keepSSHAlive() error {
 	return nil
 }
 
+// heartbeat 统一执行 SSH 远端通道与 WebSocket 协议控制帧的双端保活
+func (t *sshTerminalSession) heartbeat() error {
+	if err := t.keepSSHAlive(); err != nil {
+		return err
+	}
+	// 发送标准 WebSocket Ping 控制帧；单次超时失败不主动关闭连接，由读循环超时统一兜底
+	_ = t.sendControl(websocket.PingMessage, nil)
+	return nil
+}
+
 func (t *sshTerminalSession) send() {
 	defer t.buf.Reset()
 	pingTicker := time.NewTicker(websocketPingInterval)
@@ -149,12 +159,10 @@ func (t *sshTerminalSession) send() {
 		case <-t.ctx.Done():
 			return
 		case <-pingTicker.C:
-			if err := t.keepSSHAlive(); err != nil {
+			if err := t.heartbeat(); err != nil {
 				t.Stop()
 				return
 			}
-			// 发送协议层 Ping 帧；单次超时失败不主动关闭连接，由读循环统一处理实际断开
-			_ = t.sendControl(websocket.PingMessage, nil)
 		case <-t.tick.C:
 			if err := t.flush(); err != nil {
 				t.Stop()
