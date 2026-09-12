@@ -9,6 +9,7 @@ import (
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/ecmdb/pkg/plugin/codec"
 	"github.com/Duke1616/ecmdb/pkg/plugin/types"
+	"github.com/Duke1616/ecmdb-plugins/pkg/model"
 	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 )
 
@@ -70,23 +71,25 @@ func (p Provider) Definition() (plugin.Definition, error) {
 }
 
 type Endpoint struct {
-	Host       string `plugin:"host,field=ip,required"`
-	Port       int    `plugin:"port,default=22"`
-	Username   string `plugin:"username,required"`
-	Password   string `plugin:"password"`
-	PrivateKey string `plugin:"private_key"`
-	AuthType   string `plugin:"auth_type"`
-	Sort       int    `plugin:"sort"`
+	model.BaseResource
+	Host       string `plugin:"host,label=主机地址,field=ip,required"`
+	Port       int    `plugin:"port,label=SSH端口,default=22"`
+	Username   string `plugin:"username,label=登录账号,required"`
+	Password   string `plugin:"password,label=登录密码"`
+	PrivateKey string `plugin:"private_key,label=私钥凭证"`
+	AuthType   string `plugin:"auth_type,label=认证方式"`
+	Sort       int    `plugin:"sort,label=排序权重"`
 }
 
 type Gateway struct {
-	Host       string `plugin:"host,field=host,required"`
-	Port       int    `plugin:"port,default=22"`
-	Username   string `plugin:"username,required"`
-	Password   string `plugin:"password"`
-	PrivateKey string `plugin:"private_key"`
-	AuthType   string `plugin:"auth_type"`
-	Sort       int    `plugin:"sort"`
+	model.BaseResource
+	Host       string `plugin:"host,label=网关地址,field=host,required"`
+	Port       int    `plugin:"port,label=网关端口,default=22"`
+	Username   string `plugin:"username,label=网关账号,required"`
+	Password   string `plugin:"password,label=网关密码"`
+	PrivateKey string `plugin:"private_key,label=网关私钥"`
+	AuthType   string `plugin:"auth_type,label=认证方式"`
+	Sort       int    `plugin:"sort,label=排序权重"`
 }
 
 type ConnectionTarget struct {
