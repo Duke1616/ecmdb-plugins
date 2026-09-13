@@ -47,6 +47,15 @@ func TestDefinition(t *testing.T) {
 		t.Fatal("sftp action should not auto connect")
 	}
 
+	// 验证绑定复用：sftp 动作自动复用 terminal 的 binding_uid
+	expectedBindingUID := "builtin.ssh.host"
+	if def.Plugin.Actions[0].BindingUID != expectedBindingUID {
+		t.Fatalf("terminal binding_uid = %s, want %s", def.Plugin.Actions[0].BindingUID, expectedBindingUID)
+	}
+	if def.Plugin.Actions[1].BindingUID != expectedBindingUID {
+		t.Fatalf("sftp reuse binding_uid = %s, want %s", def.Plugin.Actions[1].BindingUID, expectedBindingUID)
+	}
+
 	runtime, ok := def.Plugin.Runtime()
 	if !ok {
 		t.Fatal("runtime not found")
@@ -54,9 +63,37 @@ func TestDefinition(t *testing.T) {
 	if runtime.Mode != types.RuntimeModeExternalService || runtime.Upstream != "http://ssh-plugin:8080" {
 		t.Fatalf("runtime = %#v", runtime)
 	}
+
+	// 验证无需写 Setup，CMDB 自动从 Bind 推导出父子两层模型与各自的中文名/分组
 	if len(def.Schema.Models) != 2 {
 		t.Fatalf("models = %#v", def.Schema.Models)
 	}
+	var hostModel, gatewayModel *types.ModelSpec
+	for i := range def.Schema.Models {
+		if def.Schema.Models[i].UID == ModelHost {
+			hostModel = &def.Schema.Models[i]
+		} else if def.Schema.Models[i].UID == ModelAuthGateway {
+			gatewayModel = &def.Schema.Models[i]
+		}
+	}
+	if hostModel == nil || hostModel.Name != "主机资产" || hostModel.GroupName != "计算资源" {
+		t.Fatalf("host model = %#v", hostModel)
+	}
+	if gatewayModel == nil || gatewayModel.Name != "跳板机网关" || gatewayModel.GroupName != "安全凭据" {
+		t.Fatalf("gateway model = %#v", gatewayModel)
+	}
+
+	// 验证分组自动收集
+	if len(def.Schema.ModelGroups) != 2 {
+		t.Fatalf("model groups count = %d, want 2", len(def.Schema.ModelGroups))
+	}
+
+	// 验证模型关联拓扑自动构建
+	if len(def.Schema.ModelRelations) != 1 {
+		t.Fatalf("model relations = %#v", def.Schema.ModelRelations)
+	}
+
+	// 验证 Binding 图谱正确
 	if len(def.Bindings) != 1 || def.Bindings[0].Graph == nil {
 		t.Fatalf("bindings = %#v", def.Bindings)
 	}

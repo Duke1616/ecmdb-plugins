@@ -1,145 +1,134 @@
 # ECMDB Plugins (`ecmdb-plugins`)
 
-`ecmdb-plugins` 是 ECMDB 的微服务插件仓库。项目采用 **Mono-repo** 架构，将各业务插件以独立微服务形式进行开发与解耦。
+`ecmdb-plugins` 是 ECMDB（企业级下一代元数据驱动配置管理数据库）的官方微服务插件生态仓库。项目采用 **Mono-repo** 架构，将各个业务插件以独立微服务形式进行开发、解耦与部署。
 
-系统基于 **控制面与数据面分离** 的架构进行设计：
-* **主站控制面 (ECMDB Core)**：统一托管资产主数据拓扑与关系、敏感凭证存储、并在内存中提供凭证解密服务；提供反向代理网关。
-* **插件服务数据面 (Plugin Service)**：承载实际的物理连接和具体业务逻辑（如在线终端会话、SFTP 读写、容器日志拉取等），并托管配套的前端 UMD 微组件。
+## 一、核心架构与交互时序
 
----
+系统严格遵循 **控制面 (Control Plane) 与数据面 (Data Plane) 分离** 的微服务架构设计：
 
-## 核心交互机制
+* **主站控制面 (ECMDB Core)**：托管资产元数据 Schema、数据拓扑图谱、加密凭据存储；在内存中按权限安全解密；提供网关代理与插件服务发现控制面。
+* **插件数据面 (Plugin Service)**：承载实际的底层连接握手与具体运维业务（如 Web Shell 终端流、SFTP 文件双向读写、容器日志监控等），并托管配套的前端 UMD 微组件。
 
-### 1. 微前端热插拔渲染 (UMD)
-主站前端提供通用的插件加载容器（基座），通过运行时视图接口（`GET /api/plugin/runtime/view`）获取插件对应的 `index.umd.js` 与 `index.css` 加载路径。基座动态向 Document 插入标签拉取 UMD 资源，并注入 Vue、Pinia、ElementPlus 等全局共享依赖，最终动态渲染挂载插件的前端组件。
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 用户 / 浏览器
+    participant Web as 前端基座 (Vue3)
+    participant Core as ECMDB 主站控制面
+    participant Plugin as 插件微服务 (数据面)
+    participant Host as 物理基础设施 (Host/K8s/DB)
 
-插件前端采用约定式加载：主站会根据 `plugin_id` 推导 UMD 全局挂载名，并固定读取入口组件 `Index`。例如插件 ID `builtin.ssh` 对应 `window.EcmdbPluginBuiltinSsh.Index`。
-
-### 2. 网关代理与路由重写
-前端微组件发送的接口请求均以 `apiBase`（即 `/api/cmdb/plugin-runtime/:plugin_id`）为前缀。主站插件网关拦截此类请求，自动剥离前缀，根据注册的 `upstream` 代理转发。
-* 例如：向主站发起的静态资源请求 `/api/cmdb/plugin-runtime/builtin.ssh/static/index.umd.js` 将被代理转发至 SSH 插件后端的 `/static/index.umd.js`。
-
-### 3. 安全凭证隔离与解密投递 (gRPC)
-主机密码、私钥等敏感凭据绝不流向前端浏览器。当插件后端收到连接请求时，通过内部 gRPC 接口向主站控制面发起 `ResolveActionContext` 请求。主站控制面在内存中解密凭据，拼装成完整的连接上下文（如 `ConnectionTarget`，含主机和跳板机网关链）后返回给插件服务。插件服务据此发起真正的 SSH/SFTP 物理连接。
-
----
-
-## 插件开发步骤
-
-开发并运行一个全新的插件，通常包含以下五个核心步骤：
-
-### 1. 定义自描述元数据与拓扑模型
-在插件的 `internal/define/definition.go` 中实现 `plugin.Definition` 的元数据与拓扑定义：
-- **Action 关联动作**：定义操作菜单（如 `terminal`、`sftp`）及其在主站前端的呈现参数（如 workspace 布局）。
-- **Setup 关联模型**：定义插件运行需要的 CMDB 资源模型（如主机模型 `host`，网关模型 `AuthGateway`）和它们的关系拓扑（如多对多关系）。
-- **Bind 数据绑定**：定义一个 Go 结构体（如 `ConnectionTarget`），通过结构体 Tag 声明当 Action 触发时，主站应该将 CMDB 实例中的哪些属性字段（包含密码、私钥等）映射拼装好投递给插件后端。
-
-### 2. 实现业务逻辑并实现插件契约
-在插件中编写具体的业务处理器（如 `Handler`），并使其实现通用的 `bootstrap.IPlugin` 契约接口：
-- 实现 `ID()` 返回插件唯一标识，实现 `Name()` 返回名称。
-- 实现 `Definition()` 直接导出第一步中定义的元数据。
-- 实现 `RegisterPrivateRoutes(router *gin.RouterGroup)`，只将插件特有的私有核心 API 挂载至传入的路由组。
-
-### 3. 使用 `bootstrap` 一键引导服务
-在插件的依赖注入（IoC）层，通过调用通用脚手架一键拉起与装配整个微服务容器。例如在 `ioc/web.go` 中：
-```go
-func InitWebServer(
-	cfg bootstrap.Config,
-	sshHdl *sshweb.Handler,
-	listener net.Listener,
-	resolver *common_grpc.Resolver,
-) *bootstrap.PluginApp {
-	return bootstrap.NewPluginApp(bootstrap.BootstrapOptions{
-		Plugin:              sshHdl,
-		Resolver:            resolver,
-		Upstream:            cfg.Upstream,
-		StaticDist:          "./plugins/<plugin_name>/frontend/dist",
-		Listener:            listener,
-		PermissionProviders: nil, // 若无特殊权限控制点可留空
-	})
-}
+    Note over Core,Plugin: 1. 服务启动与自发现
+    Plugin->>Core: 启动并自动 gRPC 注册 (上报元数据、绑定图谱与路由契约)
+    
+    Note over User,Web: 2. 用户触发动作 (如进入工作台)
+    User->>Web: 访问资产详情 -> 点击【Web Shell】工作台
+    Web->>Core: 拉取插件运行时视图配置
+    Core-->>Web: 返回 index.umd.js 地址与 apiBase 代理网关前缀
+    Web->>Plugin: 动态加载 UMD 微组件并挂载渲染
+    
+    Note over Web,Plugin: 3. 建立物理会话与安全凭据流转
+    Web->>Plugin: 发起会话请求 (携带 resource_id，无任何明文密码)
+    Plugin->>Core: gRPC 请求动作上下文 ResolveActionContext(resource_id)
+    Note over Core: 在控制面内存中按拓扑安全解密密码/私钥
+    Core-->>Plugin: 返回明文凭证上下文 (如 ConnectionTarget)
+    Plugin->>Host: 建立真实物理 SSH / SFTP 握手通道
+    Plugin-->>Web: 升级为 WebSocket / 双向数据流传输
 ```
-框架内部会自动托管自描述 Well-known 路由、健康检查、日志与 CORS 中间件、前端 UMD 静态托管、EIAM 权限路由同步及主站 gRPC 自动注册（含 `ekit/retry` 优雅指数重避重试机制）。
-
-### 4. 编译打包微组件前端 (UMD)
-在 `frontend/` 下开发前端组件。为避免体积冗余，需在前端打包工具（如 `vite.config.ts`）中进行如下配置：
-- 将 Vue 基座依赖外部化（`external`），运行时直接读取基座全局变量（如 `window.Vue`）。
-- 打包输出格式配置为 `umd`，设置与主站推导一致的全局变量名称挂载在 window 上（例如插件 ID `builtin.ssh` 对应 `name: 'EcmdbPluginBuiltinSsh'`）。
-- 确保 JS 与 CSS 合并打包输出为 `index.umd.js` 和 `index.css` 并输出至 `dist/` 目录。
-- 确保入口文件导出 `Index` 组件，因为主站运行时视图当前固定返回 `component_name: "Index"`。
-- 插件内部接口请求必须使用主站注入的 `apiBase` 前缀，避免写死主站或插件的物理地址。
-
-新增插件在不调整主站前端的情况下可被动态加载，但必须满足以下运行时约定：
-- 插件 ID 稳定唯一，且前端 UMD `name` 与主站推导的 `global_name` 一致。
-- 插件服务托管 `/static/index.umd.js` 和 `/static/index.css`。
-- UMD 包在 `window[global_name]` 下暴露 `Index` 组件。
-- 插件定义中的 Action 能被主站解析为运行时视图，并且插件运行态配置了可访问的 `upstream`。
-
-### 5. 消费上下文并建立物理连接
-在业务逻辑处理中，利用主站提供的 gRPC 客户端：
-- 向主站发送 `ResolveActionContext` 请求，传入 Resource ID。
-- 将主站返回的解密后的上下文数据反序列化为第一步中声明的绑定结构体，直接提取最终的明文密码、私钥以及跳板机网关拓扑，利用通用配置 `bootstrap.PluginConfig` 中的各项指标建立底层的物理连接。
 
 ---
 
-## 仓库目录结构
+## 二、核心设计机制
 
-本项目是一个 Mono-repo 结构，所有插件共享同一个 Go Module (`github.com/Duke1616/ecmdb-plugins`)。
+### 1. 凭证零泄露与内存解密
+* **绝不暴露给前端**：主机密码、私钥、Token 等敏感数据绝不通过 HTTP API 流向浏览器；
+* **按需内存流转**：前端仅传递资产 ID，插件微服务在建立物理连接时，通过内部 gRPC 接口安全请求主站；主站控制面在内存中解密凭据后投递给插件后端，使用完毕即在内存中释放。
+
+### 2. 微前端热插拔 (UMD 架构)
+* 主站前端提供通用的微前端加载基座；
+* 插件前端打包为标准 UMD 单包（`index.umd.js` + `index.css`），由插件后端静态托管；
+* 主站基座运行时动态拉取微组件，并统一注入 Vue 3、Element Plus、Pinia 等共享依赖，插件迭代无需重新编译或发版主站。
+
+### 3. 网关透明反向代理
+* 前端微组件发起的 API 请求均以 `apiBase`（即 `/api/cmdb/plugin-runtime/:plugin_id`）为前缀；
+* 主站插件网关拦截并自动剥离前缀，根据注册的 `upstream` 代理转发至插件后端物理端口，实现内外网安全隔离与统一鉴权。
+
+---
+
+## 三、两类插件模型
+
+在规划和编写插件前，根据业务场景选择对应的模型：
+
+| 插件形态 | 核心特点 | 典型场景 | API 范式 |
+| :--- | :--- | :--- | :--- |
+| **资产驱动型 (Target-Driven)** | **最常用**。绑定 CMDB 具体资产模型（或复合拓扑），自动在资产详情页挂载动作，并将安全解密后的资产注入业务处理上下文。 | SSH 终端、SFTP、Redis 管理器、数据库管控台、K8s 控制台 | `plugin.Target[T](reg, modelUID).Model("名称", "分组").Workspace(...)` |
+| **纯动作型 (Pure Actions)** | 无资产绑定。作为系统级全局功能入口或批量扫描工具。 | 网络连通性检测、集群通用巡检 | `reg.Action("ping", "Ping").Definition()` |
+
+---
+
+## 四、开发文档
+
+关于插件的具体实现与设计规范，请查阅以下文档：
+
+- **[插件开发指南](docs/plugin-guide.md)**：包含单资产插件、复合拓扑插件及前端微组件的完整代码骨架，以及 Tag 语法速查表。
+- **[运行时设计规范](docs/runtime-design.md)**：说明微前端 UMD 加载机制、网关反向代理与路由重写规则。
+- **[权限契约规范](docs/permissions.md)**：说明声明式权限点定义与 EIAM 契约同步机制。
+
+---
+
+## 五、仓库目录结构
+
+本项目是一个 Mono-repo 结构，所有插件共享同一个 Go Module (`github.com/Duke1616/ecmdb-plugins`)：
 
 ```text
 .
 ├── api/                        # gRPC Protobuf 接口定义（包含主站与插件的通信协议）
-├── buf.gen.yaml                # Buf 代码生成配置
-├── docs/                       # 设计文档与运行时设计规范
-├── ioc/                        # 依赖注入组件（Etcd、Registry 等）
-├── pkg/                        # 共享的基础工具包（如共享的 gRPC resolver 等）
-├── plugins/                    # 插件目录
+├── docs/                       # 架构设计文档与实战开发指南
+│   ├── permissions.md          # 权限契约规范
+│   ├── plugin-guide.md         # 插件开发实战指南与代码模板
+│   └── runtime-design.md       # 运行时与网关反代设计规范
+├── ioc/                        # 全局共享依赖注入组件
+├── pkg/                        # 基础通用工具包（bootstrap 脚手架、共享 gRPC resolver 等）
+├── plugins/                    # 业务插件微服务集合
 │   └── ssh/                    # SSH 终端与文件管理插件
-│       ├── cmd/                # 插件启动入口
+│       ├── cmd/                # 插件服务启动入口
 │       ├── config/             # 本地配置文件模板
-│       ├── frontend/           # 插件前端组件目录 (Vue3 / TS)
-│       └── internal/           # 插件后端领域逻辑（Web接口、配置、定义等）
-└── Taskfile.yaml               # 本地开发任务管理
+│       ├── frontend/           # 插件配套前端微组件 (Vue3 / TS / Vite UMD)
+│       └── internal/           # 插件后端领域逻辑（定义、Web 接口、业务核心）
+└── Taskfile.yaml               # 本地开发与代码生成任务管理
 ```
 
 ---
 
-## 本地开发指南
+## 六、本地开发与常用命令
 
-### 1. 工具链常用命令
-通过根目录的 [Taskfile.yaml](file:///Users/luankz/go-code/ecmdb-plugins/Taskfile.yaml) 自动化管理流程：
-* 编译更新 gRPC proto 定义：
-  ```bash
-  task gen
-  ```
-* 生成 Mock 代码：
-  ```bash
-  task mock
-  ```
-* 本地启动默认的 SSH 插件服务：
-  ```bash
-  task run
-  ```
+项目使用 [Taskfile.yaml](Taskfile.yaml) 统一管理构建、测试与生成流程：
 
-### 2. 运行与配置（以 SSH 插件为例）
-可以直接通过命令行参数启动：
 ```bash
-go run ./plugins/ssh/cmd/main.go server --addr :18080 --upstream http://127.0.0.1:18080 --ecmdb-grpc-addr 127.0.0.1:9000
+# 1. 整理与更新依赖
+go mod tidy
+
+# 2. 编译并更新 gRPC Proto 契约代码
+task gen
+
+# 3. 运行全量单元测试 (规范表驱动测试，保证 100% 通过)
+go test -v ./...
+
+# 4. 本地启动示例 SSH 插件微服务
+task run
 ```
-或通过环境变量进行配置（优先级高于配置文件）：
+
+也可以直接通过命令行参数启动指定插件：
 ```bash
-SSH_PLUGIN_ADDR=:18080                     # 插件服务监听端口
-SSH_PLUGIN_UPSTREAM=http://127.0.0.1:18080 # 主站网关代理转发的 upstream 物理地址
-SSH_PLUGIN_TIMEOUT_SECONDS=5               # SSH 连接超时时间
-ECMDB_GRPC_ADDR=127.0.0.1:9000             # ECMDB Core 主站的 gRPC 注册服务地址
+go run ./plugins/ssh/cmd/main.go server \n    --addr :18080 \n    --upstream http://127.0.0.1:18080 \n    --ecmdb-grpc-addr 127.0.0.1:9000
 ```
 
 ---
 
-## 插件矩阵列表
+## 七、插件生态矩阵
 
-| 插件名称 | 插件唯一标识 (`UID`) | 业务描述 | 当前状态 | 对应目录 |
-| :--- | :--- | :--- | :--- | :--- |
-| **SSH 插件** | `builtin.ssh` | 基于 CMDB 主机和跳板机网关链路，提供在线终端 (Web Shell) 与 SFTP 文件管理。 | 已完成 | [plugins/ssh](file:///Users/luankz/go-code/ecmdb-plugins/plugins/ssh) |
-| **K8s 插件** | `builtin.k8s` | 提供 Kubernetes 容器终端登录、日志查看与文件双向拷贝。 | 规划中 | - |
-| **RDP 插件** | `builtin.rdp` | 提供 Windows 远程桌面连接管理。 | 规划中 | - |
+| 插件名称 | 插件唯一标识 (`UID`) | 业务描述 | 当前状态 | 对应代码目录 |
+| :--- | :--- | :--- | :---: | :--- |
+| **SSH 终端插件** | `builtin.ssh` | 基于主机和跳板机网关链路，提供 Web Shell 在线终端与 SFTP 可视化文件管理。 | ✅ 已完成 | [plugins/ssh](plugins/ssh) |
+| **K8s 管控插件** | `builtin.k8s` | 提供 Kubernetes 容器 Exec 终端登录、实时日志流查看与双向文件传输。 | ⏳ 规划中 | - |
+| **Redis 管理器** | `builtin.redis` | 提供在线 Key 浏览、慢查询分析与交互式命令行控制台。 | ⏳ 规划中 | - |

@@ -3,14 +3,13 @@ package define
 import (
 	"slices"
 
-	"github.com/samber/lo"
-
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
+	"github.com/Duke1616/ecmdb-plugins/pkg/model"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 	"github.com/Duke1616/ecmdb/pkg/plugin"
 	"github.com/Duke1616/ecmdb/pkg/plugin/codec"
 	"github.com/Duke1616/ecmdb/pkg/plugin/types"
-	"github.com/Duke1616/ecmdb-plugins/pkg/model"
-	"github.com/Duke1616/ecmdb-plugins/pkg/term"
+	"github.com/samber/lo"
 )
 
 const (
@@ -20,7 +19,9 @@ const (
 
 	PermissionConnect = "cmdb:ssh:connect"
 
-	inputEndpoint = "endpoint"
+	// 核心模型唯一标识符
+	ModelHost        = "host"
+	ModelAuthGateway = "AuthGateway"
 )
 
 type Provider struct {
@@ -32,41 +33,32 @@ func NewProvider(cfg bootstrap.PluginConfig) Provider {
 }
 
 func (p Provider) Definition() (plugin.Definition, error) {
-	hostBindingUID := plugin.CenterBindingUID(PluginUID, "host")
-	return plugin.NewRegistry(
+	reg := plugin.NewRegistry(
 		PluginUID,
 		"SSH",
 		plugin.Type("builtin"),
 		plugin.Version("1.0.1"),
 		plugin.Description("基于 CMDB 主机和登录网关关系提供 SSH 终端与 SFTP 文件管理能力。"),
 		plugin.ExternalServiceRuntime(p.cfg.Upstream, plugin.RuntimeHealthPath("/healthz")),
-	).
-		Action(
+	)
+
+	return plugin.Target[ConnectionTarget](reg, ModelHost).
+		Workspace(
 			ActionTerminal,
-			"SSH 终端",
+			"Web Shell",
 			plugin.Icon("terminal"),
 			plugin.Permission(PermissionConnect),
-			plugin.Workspace("Web Shell", "host",
-				plugin.CardFields("name", "ip"),
-				plugin.Prop("connectionType", "Web Shell"),
-			),
-			plugin.UseBinding(hostBindingUID),
+			plugin.CardFields("name", "ip"),
+			plugin.Prop("connectionType", "Web Shell"),
 		).
-		Action(
+		Workspace(
 			ActionSFTP,
-			"文件管理",
+			"Web Sftp",
 			plugin.Icon("folder"),
 			plugin.Permission(PermissionConnect),
-			plugin.Workspace("Web Sftp", "host",
-				plugin.CardFields("name", "ip"),
-				plugin.Prop("connectionType", "Web Sftp"),
-			),
-			plugin.UseBinding(hostBindingUID),
+			plugin.CardFields("name", "ip"),
+			plugin.Prop("connectionType", "Web Sftp"),
 		).
-		Setup(
-			plugin.Derive[ConnectionTarget]("host"),
-		).
-		Bind(plugin.CenterNamed[ConnectionTarget](inputEndpoint, "host")).
 		Definition()
 }
 
@@ -93,8 +85,8 @@ type Gateway struct {
 }
 
 type ConnectionTarget struct {
-	Endpoint
-	Gateways []Gateway `plugin:"gateways,model=AuthGateway,in=default"`
+	Endpoint `plugin:",label=主机资产,group=计算资源"`
+	Gateways []Gateway `plugin:"gateways,model=AuthGateway,name=跳板机网关,group=安全凭据,in=default"`
 }
 
 func DecodeTarget(actionCtx types.ActionContext) (ConnectionTarget, error) {
