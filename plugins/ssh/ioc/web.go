@@ -66,5 +66,9 @@ func InitWebServer(
 		StaticDist:          "./plugins/ssh/frontend/dist",
 		Listener:            listener,
 		PermissionProviders: nil,
+		WebSocketPaths: []string{
+			"/terminal/ws",
+			"/sftp/upload/ws",
+		},
 	})
 }
