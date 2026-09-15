@@ -98,3 +98,73 @@ func TestDefinition(t *testing.T) {
 		t.Fatalf("bindings = %#v", def.Bindings)
 	}
 }
+
+func TestDecodeTarget(t *testing.T) {
+	actionCtx := types.ActionContext{
+		Inputs: map[string]types.ResolvedInput{
+			"target": {
+				Name:        "target",
+				Cardinality: types.CardinalityOne,
+				Resources: []types.ResolvedResource{
+					{
+						Fields: map[string]any{
+							"host":     "192.168.1.100",
+							"port":     22,
+							"username": "root",
+							"password": "secret_password",
+						},
+						Children: map[string]types.ResolvedInput{
+							"gateways": {
+								Name:        "gateways",
+								Cardinality: types.CardinalityMany,
+								Resources: []types.ResolvedResource{
+									{
+										Fields: map[string]any{
+											"host":     "1.1.1.1",
+											"port":     2222,
+											"username": "jump",
+											"password": "jump_password",
+											"sort":     1,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	target, err := DecodeTarget(actionCtx)
+	if err != nil {
+		t.Fatalf("DecodeTarget failed: %v", err)
+	}
+
+	if target.Host != "192.168.1.100" {
+		t.Fatalf("target.Host = %s, want 192.168.1.100", target.Host)
+	}
+	if target.Port != 22 {
+		t.Fatalf("target.Port = %d, want 22", target.Port)
+	}
+	if target.Username != "root" {
+		t.Fatalf("target.Username = %s, want root", target.Username)
+	}
+	if len(target.Gateways) != 1 {
+		t.Fatalf("target.Gateways len = %d, want 1", len(target.Gateways))
+	}
+	if target.Gateways[0].Host != "1.1.1.1" {
+		t.Fatalf("target.Gateways[0].Host = %s, want 1.1.1.1", target.Gateways[0].Host)
+	}
+
+	chain := target.ToGatewayChain()
+	if len(chain) != 2 {
+		t.Fatalf("chain len = %d, want 2", len(chain))
+	}
+	if chain[0].Host != "1.1.1.1" {
+		t.Fatalf("chain[0].Host = %s, want 1.1.1.1", chain[0].Host)
+	}
+	if chain[1].Host != "192.168.1.100" {
+		t.Fatalf("chain[1].Host = %s, want 192.168.1.100", chain[1].Host)
+	}
+}

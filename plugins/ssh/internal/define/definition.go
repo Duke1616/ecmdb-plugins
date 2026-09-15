@@ -85,8 +85,12 @@ type Gateway struct {
 }
 
 type ConnectionTarget struct {
-	Endpoint `plugin:",label=主机资产,group=计算资源"`
+	Endpoint
 	Gateways []Gateway `plugin:"gateways,model=AuthGateway,name=跳板机网关,group=安全凭据,in=default"`
+}
+
+func (ConnectionTarget) DescribeModel() (string, string) {
+	return "主机资产", "计算资源"
 }
 
 func DecodeTarget(actionCtx types.ActionContext) (ConnectionTarget, error) {
