@@ -14,7 +14,7 @@ type Endpoint struct {
 	Port       int
 	Username   string
 	Password   string
-	PrivateKey string
+	PrivateKey []byte
 	Passphrase string
 	AuthType   string
 	Sort       int

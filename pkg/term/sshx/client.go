@@ -130,16 +130,14 @@ func Auth(gateway term.Endpoint) (ssh.AuthMethod, error) {
 	case "passwd":
 		return ssh.Password(gateway.Password), nil
 	case "passphrase":
-		privateKeyBytes := stringToBytes(gateway.PrivateKey)
 		passwordBytes := stringToBytes(gateway.Password)
-		signer, err := ssh.ParsePrivateKeyWithPassphrase(privateKeyBytes, passwordBytes)
+		signer, err := ssh.ParsePrivateKeyWithPassphrase(gateway.PrivateKey, passwordBytes)
 		if err != nil {
 			return nil, fmt.Errorf("解析私钥失败: %v", err)
 		}
 		return ssh.PublicKeys(signer), nil
 	case "publickey":
-		privateKeyBytes := stringToBytes(gateway.PrivateKey)
-		signer, err := ssh.ParsePrivateKey(privateKeyBytes)
+		signer, err := ssh.ParsePrivateKey(gateway.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("解析私钥失败: %v", err)
 		}

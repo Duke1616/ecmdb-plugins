@@ -62,26 +62,44 @@ func (p Provider) Definition() (plugin.Definition, error) {
 		Definition()
 }
 
+// AuthType 表示 SSH 插件自描述的认证方式强类型枚举
+type AuthType string
+
+const (
+	AuthTypePasswd     AuthType = "passwd"     // 密码认证
+	AuthTypePublicKey  AuthType = "publickey"  // 免密公私钥认证
+	AuthTypePassphrase AuthType = "passphrase" // 带口令的私钥认证
+)
+
+// EnumOptions 实现枚举自描述方法，供 ECMDB 模型内省识别为 list 预设下拉选项
+func (AuthType) EnumOptions() []string {
+	return []string{
+		string(AuthTypePasswd),
+		string(AuthTypePublicKey),
+		string(AuthTypePassphrase),
+	}
+}
+
 type Endpoint struct {
 	model.BaseResource
-	Host       string `plugin:"host,label=主机地址,field=ip,required"`
-	Port       int    `plugin:"port,label=SSH端口,default=22"`
-	Username   string `plugin:"username,label=登录账号,required"`
-	Password   string `plugin:"password,label=登录密码"`
-	PrivateKey string `plugin:"private_key,label=私钥凭证"`
-	AuthType   string `plugin:"auth_type,label=认证方式"`
-	Sort       int    `plugin:"sort,label=排序权重"`
+	Host       string   `plugin:"host,field=ip,label=主机地址,required"`
+	Port       int      `plugin:"port,label=SSH端口,default=22"`
+	Username   string   `plugin:"username,label=登录账号,required"`
+	Password   string   `plugin:"password,label=登录密码"`
+	PrivateKey []byte   `plugin:"private_key,label=私钥凭证"`
+	AuthType   AuthType `plugin:"auth_type,label=认证方式,default=passwd"`
+	Sort       int      `plugin:"sort,label=排序权重"`
 }
 
 type Gateway struct {
 	model.BaseResource
-	Host       string `plugin:"host,label=网关地址,field=host,required"`
-	Port       int    `plugin:"port,label=网关端口,default=22"`
-	Username   string `plugin:"username,label=网关账号,required"`
-	Password   string `plugin:"password,label=网关密码"`
-	PrivateKey string `plugin:"private_key,label=网关私钥"`
-	AuthType   string `plugin:"auth_type,label=认证方式"`
-	Sort       int    `plugin:"sort,label=排序权重"`
+	Host       string   `plugin:"host,label=网关地址,required"`
+	Port       int      `plugin:"port,label=网关端口,default=22"`
+	Username   string   `plugin:"username,label=网关账号,required"`
+	Password   string   `plugin:"password,label=网关密码"`
+	PrivateKey []byte   `plugin:"private_key,label=网关私钥"`
+	AuthType   AuthType `plugin:"auth_type,label=认证方式,default=passwd"`
+	Sort       int      `plugin:"sort,label=排序权重"`
 }
 
 type ConnectionTarget struct {
@@ -115,7 +133,6 @@ func ResolveGatewayChain(actionCtx types.ActionContext) (term.GatewayChain, erro
 
 func (t ConnectionTarget) ToGatewayChain() term.GatewayChain {
 	gateways := append([]Gateway(nil), t.Gateways...)
-	// NOTE: 使用 slices.SortFunc 进行稳定排序，并使用 lo.Map 投影转换为 term.Endpoint 列表
 	slices.SortFunc(gateways, func(a, b Gateway) int {
 		return a.Sort - b.Sort
 	})
@@ -137,14 +154,14 @@ func (g Gateway) ToEndpoint() term.Endpoint {
 	return toEndpoint(g.Host, g.Port, g.Username, g.Password, g.PrivateKey, g.AuthType, g.Sort)
 }
 
-func toEndpoint(host string, port int, username, password, privateKey, authType string, sort int) term.Endpoint {
+func toEndpoint(host string, port int, username, password string, privateKey []byte, authType AuthType, sort int) term.Endpoint {
 	return term.Endpoint{
 		Host:       host,
 		Port:       port,
 		Username:   username,
 		Password:   password,
 		PrivateKey: privateKey,
-		AuthType:   lo.CoalesceOrEmpty(authType, "passwd"),
+		AuthType:   string(lo.CoalesceOrEmpty(authType, AuthTypePasswd)),
 		Passphrase: password,
 		Sort:       sort,
 	}

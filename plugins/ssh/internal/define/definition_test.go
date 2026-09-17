@@ -4,99 +4,86 @@ import (
 	"testing"
 
 	"github.com/Duke1616/ecmdb-plugins/pkg/bootstrap"
+	"github.com/Duke1616/ecmdb-plugins/pkg/term"
 	"github.com/Duke1616/ecmdb/pkg/plugin/types"
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDefinition(t *testing.T) {
 	def, err := NewProvider(bootstrap.PluginConfig{Upstream: "http://ssh-plugin:8080"}).Definition()
-	if err != nil {
-		t.Fatalf("Definition() error = %v", err)
-	}
+	require.NoError(t, err)
 
-	if def.Plugin.UID != PluginUID {
-		t.Fatalf("plugin uid = %s", def.Plugin.UID)
-	}
-	if len(def.Plugin.Actions) != 2 {
-		t.Fatalf("actions = %#v", def.Plugin.Actions)
-	}
-	if def.Plugin.Actions[0].Runtime == nil {
-		t.Fatal("terminal runtime not found")
-	}
-	if def.Plugin.Actions[0].Permission != PermissionConnect {
-		t.Fatalf("unexpected terminal permission: %s", def.Plugin.Actions[0].Permission)
-	}
-	if def.Plugin.Actions[0].Runtime.Layout != "workspace" {
-		t.Fatalf("unexpected terminal layout: %s", def.Plugin.Actions[0].Runtime.Layout)
-	}
-	if got := def.Plugin.Actions[0].Runtime.Props["connectionType"]; got != "Web Shell" {
-		t.Fatalf("unexpected terminal connectionType: %v", got)
-	}
-	if _, ok := def.Plugin.Actions[0].Runtime.Props["autoConnect"]; ok {
-		t.Fatal("terminal action should not auto connect")
-	}
-	if def.Plugin.Actions[1].Runtime == nil {
-		t.Fatal("sftp runtime not found")
-	}
-	if def.Plugin.Actions[1].Permission != PermissionConnect {
-		t.Fatalf("unexpected sftp permission: %s", def.Plugin.Actions[1].Permission)
-	}
-	if got := def.Plugin.Actions[1].Runtime.Props["connectionType"]; got != "Web Sftp" {
-		t.Fatalf("unexpected sftp connectionType: %v", got)
-	}
-	if _, ok := def.Plugin.Actions[1].Runtime.Props["autoConnect"]; ok {
-		t.Fatal("sftp action should not auto connect")
-	}
+	t.Run("插件基础信息与运行时", func(t *testing.T) {
+		assert.Equal(t, PluginUID, def.Plugin.UID)
+		assert.Equal(t, "SSH", def.Plugin.Name)
 
-	// 验证绑定复用：sftp 动作自动复用 terminal 的 binding_uid
-	expectedBindingUID := "builtin.ssh.host"
-	if def.Plugin.Actions[0].BindingUID != expectedBindingUID {
-		t.Fatalf("terminal binding_uid = %s, want %s", def.Plugin.Actions[0].BindingUID, expectedBindingUID)
-	}
-	if def.Plugin.Actions[1].BindingUID != expectedBindingUID {
-		t.Fatalf("sftp reuse binding_uid = %s, want %s", def.Plugin.Actions[1].BindingUID, expectedBindingUID)
-	}
+		runtime, ok := def.Plugin.Runtime()
+		require.True(t, ok)
+		assert.Equal(t, types.RuntimeModeExternalService, runtime.Mode)
+		assert.Equal(t, "http://ssh-plugin:8080", runtime.Upstream)
+	})
 
-	runtime, ok := def.Plugin.Runtime()
-	if !ok {
-		t.Fatal("runtime not found")
-	}
-	if runtime.Mode != types.RuntimeModeExternalService || runtime.Upstream != "http://ssh-plugin:8080" {
-		t.Fatalf("runtime = %#v", runtime)
-	}
+	t.Run("动作与工作区配置", func(t *testing.T) {
+		require.Len(t, def.Plugin.Actions, 2)
 
-	// 验证无需写 Setup，CMDB 自动从 Bind 推导出父子两层模型与各自的中文名/分组
-	if len(def.Schema.Models) != 2 {
-		t.Fatalf("models = %#v", def.Schema.Models)
-	}
-	var hostModel, gatewayModel *types.ModelSpec
-	for i := range def.Schema.Models {
-		if def.Schema.Models[i].UID == ModelHost {
-			hostModel = &def.Schema.Models[i]
-		} else if def.Schema.Models[i].UID == ModelAuthGateway {
-			gatewayModel = &def.Schema.Models[i]
-		}
-	}
-	if hostModel == nil || hostModel.Name != "主机资产" || hostModel.GroupName != "计算资源" {
-		t.Fatalf("host model = %#v", hostModel)
-	}
-	if gatewayModel == nil || gatewayModel.Name != "跳板机网关" || gatewayModel.GroupName != "安全凭据" {
-		t.Fatalf("gateway model = %#v", gatewayModel)
-	}
+		termAction := def.Plugin.Actions[0]
+		assert.Equal(t, ActionTerminal, termAction.Action)
+		assert.Equal(t, PermissionConnect, termAction.Permission)
+		assert.Equal(t, "workspace", termAction.Runtime.Layout)
+		assert.Equal(t, "Web Shell", termAction.Runtime.Props["connectionType"])
+		assert.Equal(t, "builtin.ssh.host", termAction.BindingUID)
 
-	// 验证分组自动收集
-	if len(def.Schema.ModelGroups) != 2 {
-		t.Fatalf("model groups count = %d, want 2", len(def.Schema.ModelGroups))
-	}
+		sftpAction := def.Plugin.Actions[1]
+		assert.Equal(t, ActionSFTP, sftpAction.Action)
+		assert.Equal(t, PermissionConnect, sftpAction.Permission)
+		assert.Equal(t, "Web Sftp", sftpAction.Runtime.Props["connectionType"])
+		assert.Equal(t, "builtin.ssh.host", sftpAction.BindingUID) // 复用终端绑定 UID
+	})
 
-	// 验证模型关联拓扑自动构建
-	if len(def.Schema.ModelRelations) != 1 {
-		t.Fatalf("model relations = %#v", def.Schema.ModelRelations)
-	}
+	t.Run("CMDB 资产模型推导", func(t *testing.T) {
+		require.Len(t, def.Schema.Models, 2)
 
-	// 验证 Binding 图谱正确
-	if len(def.Bindings) != 1 || def.Bindings[0].Graph == nil {
-		t.Fatalf("bindings = %#v", def.Bindings)
-	}
+		hostModel, ok := lo.Find(def.Schema.Models, func(m types.ModelSpec) bool { return m.UID == ModelHost })
+		require.True(t, ok)
+		assert.Equal(t, "主机资产", hostModel.Name)
+		assert.Equal(t, "计算资源", hostModel.GroupName)
+
+		gatewayModel, ok := lo.Find(def.Schema.Models, func(m types.ModelSpec) bool { return m.UID == ModelAuthGateway })
+		require.True(t, ok)
+		assert.Equal(t, "跳板机网关", gatewayModel.Name)
+		assert.Equal(t, "安全凭据", gatewayModel.GroupName)
+
+		// 验证网关模型属性推导
+		gwFields := gatewayModel.AttributeGroups[0].Fields
+
+		// 1. private_key 自动推导为 multiline 且安全加密
+		pkField, ok := lo.Find(gwFields, func(a types.Attribute) bool { return a.UID == "private_key" })
+		require.True(t, ok)
+		assert.Equal(t, "multiline", pkField.Type)
+		assert.True(t, pkField.Secure)
+		assert.False(t, pkField.Display)
+
+		// 2. auth_type 通过 IEnum 自动推导为 list 且包含所有枚举选项
+		authField, ok := lo.Find(gwFields, func(a types.Attribute) bool { return a.UID == "auth_type" })
+		require.True(t, ok)
+		assert.Equal(t, "list", authField.Type)
+		assert.Equal(t, []string{"passwd", "publickey", "passphrase"}, authField.Option)
+	})
+
+	t.Run("拓扑关联与绑定图谱", func(t *testing.T) {
+		assert.Len(t, def.Schema.ModelGroups, 2)
+		require.Len(t, def.Schema.ModelRelations, 1)
+
+		rel := def.Schema.ModelRelations[0]
+		assert.Equal(t, ModelAuthGateway, rel.SourceModelUID)
+		assert.Equal(t, ModelHost, rel.TargetModelUID)
+		assert.Equal(t, types.RelationTypeDefault, rel.RelationTypeUID)
+
+		require.Len(t, def.Bindings, 1)
+		assert.NotNil(t, def.Bindings[0].Graph)
+	})
 }
 
 func TestDecodeTarget(t *testing.T) {
@@ -108,10 +95,12 @@ func TestDecodeTarget(t *testing.T) {
 				Resources: []types.ResolvedResource{
 					{
 						Fields: map[string]any{
-							"host":     "192.168.1.100",
-							"port":     22,
-							"username": "root",
-							"password": "secret_password",
+							"host":        "192.168.1.100",
+							"port":        22,
+							"username":    "root",
+							"password":    "secret_password",
+							"private_key": "target_private_key",
+							"auth_type":   "publickey",
 						},
 						Children: map[string]types.ResolvedInput{
 							"gateways": {
@@ -120,11 +109,13 @@ func TestDecodeTarget(t *testing.T) {
 								Resources: []types.ResolvedResource{
 									{
 										Fields: map[string]any{
-											"host":     "1.1.1.1",
-											"port":     2222,
-											"username": "jump",
-											"password": "jump_password",
-											"sort":     1,
+											"host":        "1.1.1.1",
+											"port":        2222,
+											"username":    "jump",
+											"password":    "jump_password",
+											"private_key": "jump_private_key",
+											"auth_type":   "passphrase",
+											"sort":        1,
 										},
 									},
 								},
@@ -137,34 +128,53 @@ func TestDecodeTarget(t *testing.T) {
 	}
 
 	target, err := DecodeTarget(actionCtx)
-	if err != nil {
-		t.Fatalf("DecodeTarget failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	if target.Host != "192.168.1.100" {
-		t.Fatalf("target.Host = %s, want 192.168.1.100", target.Host)
-	}
-	if target.Port != 22 {
-		t.Fatalf("target.Port = %d, want 22", target.Port)
-	}
-	if target.Username != "root" {
-		t.Fatalf("target.Username = %s, want root", target.Username)
-	}
-	if len(target.Gateways) != 1 {
-		t.Fatalf("target.Gateways len = %d, want 1", len(target.Gateways))
-	}
-	if target.Gateways[0].Host != "1.1.1.1" {
-		t.Fatalf("target.Gateways[0].Host = %s, want 1.1.1.1", target.Gateways[0].Host)
-	}
+	t.Run("解码为强类型目标结构体", func(t *testing.T) {
+		assert.Equal(t, "192.168.1.100", target.Host)
+		assert.Equal(t, 22, target.Port)
+		assert.Equal(t, "root", target.Username)
+		assert.Equal(t, "secret_password", target.Password)
+		assert.Equal(t, []byte("target_private_key"), target.PrivateKey)
+		assert.Equal(t, AuthTypePublicKey, target.AuthType)
 
-	chain := target.ToGatewayChain()
-	if len(chain) != 2 {
-		t.Fatalf("chain len = %d, want 2", len(chain))
-	}
-	if chain[0].Host != "1.1.1.1" {
-		t.Fatalf("chain[0].Host = %s, want 1.1.1.1", chain[0].Host)
-	}
-	if chain[1].Host != "192.168.1.100" {
-		t.Fatalf("chain[1].Host = %s, want 192.168.1.100", chain[1].Host)
-	}
+		require.Len(t, target.Gateways, 1)
+		gw := target.Gateways[0]
+		assert.Equal(t, "1.1.1.1", gw.Host)
+		assert.Equal(t, 2222, gw.Port)
+		assert.Equal(t, "jump", gw.Username)
+		assert.Equal(t, []byte("jump_private_key"), gw.PrivateKey)
+		assert.Equal(t, AuthTypePassphrase, gw.AuthType)
+		assert.Equal(t, 1, gw.Sort)
+	})
+
+	t.Run("转换为多级网关跳转链路", func(t *testing.T) {
+		chain := target.ToGatewayChain()
+		require.Len(t, chain, 2)
+
+		expectedChain := term.GatewayChain{
+			{
+				Host:       "1.1.1.1",
+				Port:       2222,
+				Username:   "jump",
+				Password:   "jump_password",
+				PrivateKey: []byte("jump_private_key"),
+				AuthType:   "passphrase",
+				Passphrase: "jump_password",
+				Sort:       1,
+			},
+			{
+				Host:       "192.168.1.100",
+				Port:       22,
+				Username:   "root",
+				Password:   "secret_password",
+				PrivateKey: []byte("target_private_key"),
+				AuthType:   "publickey",
+				Passphrase: "secret_password",
+				Sort:       2,
+			},
+		}
+
+		assert.Equal(t, expectedChain, chain)
+	})
 }
