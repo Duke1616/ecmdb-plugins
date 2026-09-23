@@ -23,6 +23,7 @@ import (
 	"github.com/ecodeclub/ginx"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/gotomicro/ego/core/elog"
 )
 
 type missingResolver struct{}
@@ -230,11 +231,35 @@ func (h *Handler) openSSHSession(ctx context.Context, resourceID int64, action s
 		return nil, fmt.Errorf("ssh connector not registered")
 	}
 
+	// 打印调试日志便于排查解析出的拓扑与连接目标
+	elog.Info("准备发起 SSH 终端连接",
+		elog.Int64("resource_id", resourceID),
+		elog.String("action", action),
+		elog.Int("chain_length", len(chain)),
+	)
+	for idx, ep := range chain {
+		elog.Info("SSH 链路节点详情",
+			elog.Int("step", idx+1),
+			elog.Int("total", len(chain)),
+			elog.String("host", ep.Host),
+			elog.Int("port", ep.Port),
+			elog.String("username", ep.Username),
+			elog.String("auth_type", ep.AuthType),
+			elog.Int("sort", ep.Sort),
+			elog.Any("has_password", ep.Password != ""),
+			elog.Any("has_private_key", len(ep.PrivateKey) > 0),
+		)
+	}
+
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, h.timeout)
 	defer cancel()
 
 	sess, err := connector.Connect(ctxWithTimeout, chain, nil)
 	if err != nil {
+		elog.Error("SSH 链路连接失败",
+			elog.Int64("resource_id", resourceID),
+			elog.FieldErr(err),
+		)
 		return nil, fmt.Errorf("ssh connector fail: %w", err)
 	}
 

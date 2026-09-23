@@ -52,7 +52,7 @@ func Connect(ctx context.Context, gateways []term.Endpoint) (*ssh.Client, error)
 			// 连接第一个网关
 			client, err = dialWithContext(ctx, gateway.Host, gateway.Port, config)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("连接首节点 [%s:%d] 失败: %w", gateway.Host, gateway.Port, err)
 			}
 		} else {
 			// 确保 client 在原连接上继续跳转，而不是新建连接
@@ -84,7 +84,7 @@ func dialWithContext(ctx context.Context, host string, port int, config *ssh.Cli
 		KeepAlive: 30 * time.Second,
 	}).DialContext(ctx, "tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("连接失败: %v", err)
+		return nil, fmt.Errorf("TCP 连接 [%s] 失败: %w", address, err)
 	}
 
 	// 使用带缓冲 channel 接收握手结果，防止 goroutine 退出时阻塞
@@ -121,7 +121,7 @@ func dialWithContext(ctx context.Context, host string, port int, config *ssh.Cli
 				_ = res.client.Close()
 			}
 		}()
-		return nil, ctx.Err()
+		return nil, fmt.Errorf("拨号节点 [%s] 超时: %w", address, ctx.Err())
 	}
 }
 
