@@ -5,8 +5,8 @@ github.com/BurntSushi/toml v1.1.0 h1:ksErzDEI1khOiGPgpwuI7x2ebx/uXQNw7xJpn9Eq1+I
 github.com/BurntSushi/toml v1.1.0/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
 github.com/Duke1616/ecmdb v1.11.6 h1:ObFtiPTLItNUFII79ndMN2vbz/ZTmglUrblnT/5Nx/A=
 github.com/Duke1616/ecmdb v1.11.6/go.mod h1:fbtDzgb+9mR/mpCNXbTTax0SgwlMMEZrW+GQHHADkg0=
-github.com/Duke1616/eiam v0.0.24 h1:w6Q7CmbiBdngKIITNIWzvcIT3FAlT+RpIGuT3GlQgCA=
-github.com/Duke1616/eiam v0.0.24/go.mod h1:EJIbSaXNS6WBJybFixo4Y0RTZt5oz/CDeVwWL2yQlEU=
+github.com/Duke1616/eiam v0.0.25 h1:27x7Uq5hQ/rCHu12kXQ/Z6g8H/GwmVbp5SIL3QBjAaA=
+github.com/Duke1616/eiam v0.0.25/go.mod h1:bd96UGU8tZe7qy4+lr+sTDdNiVggVPOiQebdDguuf0w=
 github.com/Duke1616/etask v1.14.1 h1:b5N8vFzjNveOY7Xc2MraeWmO1SCy7qsGOw5uF6aLaF8=
 github.com/Duke1616/etask v1.14.1/go.mod h1:B0N7eszFt9Drbsfd1b1lbEHARKI2GrhontQEIEtv+Q4=
 github.com/Duke1616/vuefinder-go v1.1.0 h1:4QAxNo8filt8lU0orUk/88MN7hWsPWPBAip7dmKmAuA=
@@ -438,8 +438,8 @@ github.com/stretchr/testify v1.8.4/go.mod h1:sz/lmYIOXD/1dqDmKjjqLyZ2RngseejIcXl
 github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
-github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
+github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/tklauser/go-sysconf v0.3.6 h1:oc1sJWvKkmvIxhDHeKWvZS4f6AW+YcoguSfRF2/Hmo4=
 github.com/tklauser/go-sysconf v0.3.6/go.mod h1:MkWzOF4RMCshBAMXuhXJs64Rte09mITnppBXY/rYEFI=
 github.com/tklauser/numcpus v0.2.2 h1:oyhllyrScuYI6g+h/zUvNXNp1wy7x8qQy3t/piefldA=

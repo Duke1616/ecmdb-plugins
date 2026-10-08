@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Duke1616/ecmdb v1.11.6
-	github.com/Duke1616/eiam v0.0.24
+	github.com/Duke1616/eiam v0.0.25
 	github.com/Duke1616/etask v1.14.1
 	github.com/Duke1616/vuefinder-go v1.1.0
 	github.com/ecodeclub/ekit v0.0.10

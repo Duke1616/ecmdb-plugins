@@ -17,6 +17,7 @@ RUN if [ -d "plugins/${PLUGIN_NAME}/frontend" ]; then \
 # 阶段 2：Go 核心编译
 FROM golang:1.25.0-alpine AS build
 LABEL org.opencontainers.image.authors="luankz"
+RUN apk add --no-cache git ca-certificates
 ARG PLUGIN_NAME
 ARG VERSION=unknown
 WORKDIR /app
